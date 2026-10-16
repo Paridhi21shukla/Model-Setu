@@ -1,0 +1,66 @@
+{
+  "uid": "model-setu-overview",
+  "title": "Model-Setu | Deployment & API Monitoring",
+  "tags": ["model-setu", "prometheus"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Total API Requests",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(model_setu_http_requests_total)", "legendFormat": "Requests", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Requests Per Second (5m)",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum(rate(model_setu_http_requests_total[5m]))", "legendFormat": "Requests/sec", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "area", "justifyMode": "auto"}
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "HTTP Requests by Endpoint",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (endpoint) (model_setu_http_requests_total)", "legendFormat": "{{endpoint}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Request Latency (Average, seconds)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (endpoint) (rate(model_setu_http_request_duration_seconds_sum[5m])) / sum by (endpoint) (rate(model_setu_http_request_duration_seconds_count[5m]))", "legendFormat": "{{endpoint}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "HTTP Requests by Status Code",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (status) (model_setu_http_requests_total)", "legendFormat": "HTTP {{status}}", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "multi", "sort": "desc"}}
+    }
+  ],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timepicker": {},
+  "annotations": {"list": []},
+  "links": []
+}
