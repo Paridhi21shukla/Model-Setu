@@ -17,3 +17,7 @@ frontend/build/
 *.log
 *.pkl
 *.joblib
+
+# SQLite database files
+*.db
+*.db-journal
