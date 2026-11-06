@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model-Setu | Deployment Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+    <div class="app-layout">
+
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">M</div>
+                <div>
+                    <h2>Model-Setu</h2>
+                    <span>Deployment Platform</span>
+                </div>
+            </div>
+
+            <div class="nav-label">WORKSPACE</div>
+            <nav>
+                <a class="nav-link active" href="#overview">
+                    <span>▦</span> Overview
+                </a>
+                <a class="nav-link" href="#deployments">
+                    <span>⇧</span> Deployments
+                </a>
+                <a class="nav-link" href="#monitoring">
+                    <span>◉</span> Monitoring
+                </a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <div class="connection-indicator">
+                    <span id="sidebar-status-dot" class="status-dot offline"></span>
+                    <div>
+                        <strong>Backend connection</strong>
+                        <small id="sidebar-status">Checking...</small>
+                    </div>
+                </div>
+                <div class="sidebar-footer">Model-Setu · v1.0.0</div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">CLOUD DEPLOYMENT MANAGEMENT</p>
+                    <h1>Dashboard Overview</h1>
+                    <p class="subtitle">Monitor your ML services and deployment activity.</p>
+                </div>
+                <div class="topbar-actions">
+                    <span class="environment-tag">LOCAL ENVIRONMENT</span>
+                    <button class="secondary-button" id="refresh-btn">
+                        ↻ Refresh
+                    </button>
+                </div>
+            </header>
+
+            <div id="notification" class="notification hidden"></div>
+
+            <section id="overview">
+                <div class="section-heading">
+                    <div>
+                        <h2>Overview</h2>
+                        <p>Your deployment activity at a glance.</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Total Deployments</span>
+                            <span class="stat-icon purple">▤</span>
+                        </div>
+                        <h3 id="total-deployments">—</h3>
+                        <small>All recorded deployments</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Successful Deployments</span>
+                            <span class="stat-icon green">✓</span>
+                        </div>
+                        <h3 id="successful-deployments">—</h3>
+                        <small>Deployment records with success status</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Failed Deployments</span>
+                            <span class="stat-icon red">!</span>
+                        </div>
+                        <h3 id="failed-deployments">—</h3>
+                        <small>Deployment records with failed status</small>
+                    </article>
+
+                    <article class="stat-card">
+                        <div class="stat-top">
+                            <span>Active Version</span>
+                            <span class="stat-icon blue">◆</span>
+                        </div>
+                        <h3 id="active-version">—</h3>
+                        <small>Currently active database record</small>
+                    </article>
+                </div>
+            </section>
+
+            <section class="content-grid">
+                <article class="panel active-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h2>Active Deployment</h2>
+                            <p>Currently selected deployment version.</p>
+                        </div>
+                        <span class="live-label"><span></span> LIVE DATA</span>
+                    </div>
+
+                    <div id="active-deployment-content" class="active-content">
+                        <div class="empty-state">Loading active deployment...</div>
+                    </div>
+                </article>
+
+                <article class="panel backend-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h2>System Status</h2>
+                            <p>Backend service availability.</p>
+                        </div>
+                    </div>
+
+                    <div class="system-status">
+                        <div class="system-status-row">
+                            <span>Flask Backend</span>
+                            <strong id="backend-status" class="status-text">Checking...</strong>
+                        </div>
+                        <div class="system-status-row">
+                            <span>API Endpoint</span>
+                            <strong>Port 5001</strong>
+                        </div>
+                        <div class="system-status-row">
+                            <span>Database</span>
+                            <strong>SQLite</strong>
+                        </div>
+                        <div class="system-status-row">
+                            <span>ML Service</span>
+                            <strong>Render</strong>
+                        </div>
+                    </div>
+
+                    <div class="status-note" id="last-updated">
+                        Waiting for first update...
+                    </div>
+                </article>
+            </section>
+
+            <section id="deployments" class="panel deployments-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Deployment History</h2>
+                        <p>View previous deployments and roll back to a successful version.</p>
+                    </div>
+                    <button class="secondary-button" id="history-refresh-btn">
+                        ↻ Refresh history
+                    </button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>VERSION</th>
+                                <th>STATUS</th>
+                                <th>DEPLOYED AT</th>
+                                <th>ACTIVE</th>
+                                <th>ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody id="deployment-table">
+                            <tr>
+                                <td colspan="6" class="empty-state">Loading deployment history...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="monitoring" class="panel monitoring-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Monitoring & Metrics</h2>
+                        <p>Metrics collected from the backend Prometheus endpoint.</p>
+                    </div>
+                    <span class="metrics-source">SOURCE: /metrics</span>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span>Total HTTP Requests</span>
+                        <strong id="http-requests">—</strong>
+                        <small>Observed request counter</small>
+                    </div>
+                    <div class="metric-card">
+                        <span>Average API Latency</span>
+                        <strong id="average-latency">—</strong>
+                        <small>Based on available duration metrics</small>
+                    </div>
+                    <div class="metric-card">
+                        <span>Metrics Endpoint</span>
+                        <strong id="metrics-status">Checking...</strong>
+                        <small>Prometheus format</small>
+                    </div>
+                </div>
+
+                <p class="metrics-disclaimer">
+                    Metrics are displayed only when matching Prometheus samples are available.
+                </p>
+            </section>
+
+            <section class="deployment-notice">
+                <div>
+                    <strong>Automated cloud deployment</strong>
+                    <p>GitHub Actions, Docker build and cloud deployment automation are planned for the next development phase.</p>
+                </div>
+                <span class="coming-soon">COMING SOON</span>
+            </section>
+
+            <footer>
+                <span>© 2026 Model-Setu</span>
+                <span>Built for ML deployment management</span>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>
