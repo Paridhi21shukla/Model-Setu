@@ -1,12 +1,20 @@
+
 from flask import Flask, jsonify, Response, request
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import (
+    Counter,
+    Histogram,
+    generate_latest,
+    CONTENT_TYPE_LATEST
+)
 import time
 
 from backend.database import (
     init_db,
     create_deployment,
     get_all_deployments,
-    get_deployment_by_id
+    get_deployment_by_id,
+    get_active_deployment,
+    rollback_deployment
 )
 
 app = Flask(__name__)
@@ -14,6 +22,7 @@ app = Flask(__name__)
 PROJECT_NAME = "Model-Setu"
 APP_VERSION = "0.1.0"
 
+# Prometheus metrics
 REQUEST_COUNT = Counter(
     "model_setu_http_requests_total",
     "Total HTTP requests",
@@ -28,47 +37,42 @@ REQUEST_LATENCY = Histogram(
 
 
 @app.before_request
-def start_timer():
-    from flask import g
-    g.start_time = time.perf_counter()
+def before_request():
+    request.start_time = time.time()
 
 
 @app.after_request
-def record_metrics(response):
-    from flask import g
-
-    endpoint = request.endpoint or "unknown"
+def after_request(response):
+    latency = time.time() - request.start_time
 
     REQUEST_COUNT.labels(
-        request.method, endpoint, str(response.status_code)
+        request.method,
+        request.endpoint or "unknown",
+        str(response.status_code)
     ).inc()
 
-    if hasattr(g, "start_time"):
-        REQUEST_LATENCY.labels(endpoint).observe(
-            time.perf_counter() - g.start_time
-        )
+    REQUEST_LATENCY.labels(
+        request.endpoint or "unknown"
+    ).observe(latency)
 
     return response
 
 
-@app.get("/")
-def index():
+@app.route("/", methods=["GET"])
+def home():
     return jsonify({
         "project": PROJECT_NAME,
-        "message": "Model-Setu Deployment Management API",
-        "status": "running"
-    })
-
-
-@app.get("/health")
-def health():
-    return jsonify({
-        "status": "healthy",
-        "service": "deployment-management-api"
+        "version": APP_VERSION,
+        "message": "Model-Setu Backend is running"
     }), 200
 
 
-@app.get("/version")
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "healthy"}), 200
+
+
+@app.route("/version", methods=["GET"])
 def version():
     return jsonify({
         "project": PROJECT_NAME,
@@ -76,37 +80,34 @@ def version():
     }), 200
 
 
-@app.post("/deployments")
-def add_deployment():
+@app.route("/deployments", methods=["POST"])
+def create_new_deployment():
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
-        return jsonify({"error": "JSON request body is required"}), 400
-
-    deployment_version = data.get("version")
-    deployment_status = data.get("status")
-
-    if not isinstance(deployment_version, str) or not deployment_version.strip():
-        return jsonify({"error": "Valid version is required"}), 400
-
-    if deployment_status not in ("success", "failed", "pending"):
         return jsonify({
-            "error": "Status must be success, failed, or pending"
+            "error": "Request body must contain JSON"
         }), 400
 
-    deployment = create_deployment(
-        deployment_version,
-        deployment_status
-    )
+    deployment_version = data.get("version")
+    status = data.get("status", "pending")
+
+    if not isinstance(deployment_version, str) or not deployment_version.strip():
+        return jsonify({"error": "Version is required"}), 400
+
+    if status not in ("success", "failed", "pending"):
+        return jsonify({"error": "Invalid deployment status"}), 400
+
+    deployment = create_deployment(deployment_version, status)
 
     return jsonify({
-        "message": "Deployment recorded successfully",
+        "message": "Deployment created successfully",
         "deployment": deployment
     }), 201
 
 
-@app.get("/deployments")
-def deployment_history():
+@app.route("/deployments", methods=["GET"])
+def get_deployments():
     deployments = get_all_deployments()
 
     return jsonify({
@@ -115,8 +116,8 @@ def deployment_history():
     }), 200
 
 
-@app.get("/deployments/<int:deployment_id>")
-def deployment_details(deployment_id):
+@app.route("/deployments/<int:deployment_id>", methods=["GET"])
+def get_deployment(deployment_id):
     deployment = get_deployment_by_id(deployment_id)
 
     if deployment is None:
@@ -125,12 +126,41 @@ def deployment_details(deployment_id):
     return jsonify({"deployment": deployment}), 200
 
 
-@app.get("/metrics")
+@app.route("/active-deployment", methods=["GET"])
+def active_deployment():
+    deployment = get_active_deployment()
+
+    if deployment is None:
+        return jsonify({"error": "No active deployment found"}), 404
+
+    return jsonify({
+        "active_deployment": deployment
+    }), 200
+
+
+@app.route("/rollback/<int:deployment_id>", methods=["POST"])
+def rollback(deployment_id):
+    deployment, error = rollback_deployment(deployment_id)
+
+    if error:
+        status_code = 404 if error == "Deployment not found" else 400
+        return jsonify({"error": error}), status_code
+
+    return jsonify({
+        "message": "Rollback successful",
+        "active_deployment": deployment
+    }), 200
+
+
+@app.route("/metrics", methods=["GET"])
 def metrics():
-    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+    return Response(
+        generate_latest(),
+        mimetype=CONTENT_TYPE_LATEST
+    )
 
 
-# Initialize the SQLite table when the backend starts.
+# Initialize database once
 init_db()
 
 
