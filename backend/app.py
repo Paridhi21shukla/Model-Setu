@@ -7,6 +7,18 @@ from prometheus_client import (
     CONTENT_TYPE_LATEST
 )
 import time
+from dotenv import load_dotenv
+
+from backend.github_service import (
+    GitHubServiceError,
+    get_authenticated_user,
+    get_user_repositories,
+    get_repository_branches,
+    trigger_github_workflow,
+    get_github_workflow_runs
+)
+
+load_dotenv()
 
 from backend.database import (
     init_db,
@@ -158,6 +170,77 @@ def metrics():
         generate_latest(),
         mimetype=CONTENT_TYPE_LATEST
     )
+
+
+
+@app.route("/github/user", methods=["GET"])
+def github_user():
+    try:
+        return jsonify({
+            "connected": True,
+            "user": get_authenticated_user()
+        }), 200
+    except GitHubServiceError as exc:
+        return jsonify({
+            "connected": False,
+            "error": str(exc)
+        }), 502
+
+
+@app.route("/github/repositories", methods=["GET"])
+def github_repositories():
+    try:
+        repositories = get_user_repositories()
+        return jsonify({
+            "count": len(repositories),
+            "repositories": repositories
+        }), 200
+    except GitHubServiceError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/github/repositories/<owner>/<repo_name>/branches", methods=["GET"])
+def github_branches(owner, repo_name):
+    try:
+        branches = get_repository_branches(owner, repo_name)
+        return jsonify({
+            "repository": f"{owner}/{repo_name}",
+            "count": len(branches),
+            "branches": branches
+        }), 200
+    except GitHubServiceError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+
+@app.route("/github/workflows/dispatch", methods=["POST"])
+def dispatch_github_workflow():
+    data = request.get_json(silent=True) or {}
+    owner = data.get("owner", "Paridhi21shukla")
+    repo_name = data.get("repo", "Model-Setu")
+    branch = data.get("branch", "main")
+
+    try:
+        result = trigger_github_workflow(owner, repo_name, branch)
+        return jsonify(result), 200
+    except GitHubServiceError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/github/workflows/runs", methods=["GET"])
+def github_workflow_runs():
+    owner = request.args.get("owner", "Paridhi21shukla")
+    repo_name = request.args.get("repo", "Model-Setu")
+    branch = request.args.get("branch")
+
+    try:
+        runs = get_github_workflow_runs(owner, repo_name, branch)
+        return jsonify({
+            "count": len(runs),
+            "runs": runs
+        }), 200
+    except GitHubServiceError as exc:
+        return jsonify({"error": str(exc)}), 502
 
 
 # Initialize database once

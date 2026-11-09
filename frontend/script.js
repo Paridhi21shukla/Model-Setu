@@ -418,3 +418,256 @@ document.getElementById("history-refresh-btn")
 
 // Initial dashboard load.
 refreshDashboard();
+
+
+// ---------------------------------------------------------
+// GitHub Actions integration
+// ---------------------------------------------------------
+
+const githubElements = {
+    connection: document.getElementById("github-connection-status"),
+    user: document.getElementById("github-user-name"),
+    repository: document.getElementById("github-repository"),
+    branch: document.getElementById("github-branch"),
+    trigger: document.getElementById("github-trigger-btn"),
+    runs: document.getElementById("github-runs-table"),
+    refresh: document.getElementById("github-refresh-btn"),
+    refreshRuns: document.getElementById("github-runs-refresh-btn")
+};
+
+let githubRepositories = [];
+
+function setGitHubConnection(connected, label) {
+    githubElements.connection.textContent = label;
+    githubElements.connection.className =
+        `status-pill ${connected ? "status-success" : "status-failed"}`;
+}
+
+function selectedGitHubRepository() {
+    return githubRepositories.find(
+        repo => repo.full_name === githubElements.repository.value
+    );
+}
+
+function setGitHubRunMessage(message) {
+    githubElements.runs.innerHTML = `
+        <tr><td colspan="7" class="empty-state">${escapeHTML(message)}</td></tr>
+    `;
+}
+
+async function loadGitHubUser() {
+    try {
+        const data = await apiRequest("/github/user");
+
+        if (!data.connected || !data.user) {
+            throw new Error("GitHub account is not connected");
+        }
+
+        githubElements.user.textContent =
+            data.user.name || data.user.login || "Connected";
+        setGitHubConnection(true, "Connected");
+        return true;
+    } catch (error) {
+        githubElements.user.textContent = "GitHub connection unavailable";
+        setGitHubConnection(false, "Disconnected");
+        githubElements.trigger.disabled = true;
+        setGitHubRunMessage(error.message);
+        return false;
+    }
+}
+
+async function loadGitHubRepositories() {
+    try {
+        const data = await apiRequest("/github/repositories");
+        githubRepositories = Array.isArray(data.repositories)
+            ? data.repositories
+            : [];
+
+        githubElements.repository.innerHTML = "";
+
+        if (!githubRepositories.length) {
+            githubElements.repository.innerHTML =
+                '<option value="">No repositories found</option>';
+            githubElements.branch.innerHTML =
+                '<option value="">No branches available</option>';
+            githubElements.trigger.disabled = true;
+            return;
+        }
+
+        githubRepositories.forEach(repo => {
+            const option = document.createElement("option");
+            option.value = repo.full_name;
+            option.textContent = repo.full_name;
+            githubElements.repository.appendChild(option);
+        });
+
+        const preferred = githubRepositories.find(
+            repo => repo.full_name === "Paridhi21shukla/Model-Setu"
+        );
+
+        if (preferred) {
+            githubElements.repository.value = preferred.full_name;
+        }
+
+        await loadGitHubBranches();
+    } catch (error) {
+        githubElements.repository.innerHTML =
+            '<option value="">Unable to load repositories</option>';
+        githubElements.trigger.disabled = true;
+        showNotification(`GitHub repositories: ${error.message}`, "error");
+    }
+}
+
+async function loadGitHubBranches() {
+    const repo = selectedGitHubRepository();
+
+    githubElements.trigger.disabled = true;
+    githubElements.branch.innerHTML =
+        '<option value="">Loading branches...</option>';
+
+    if (!repo) return;
+
+    try {
+        const [owner, repoName] = repo.full_name.split("/");
+        const data = await apiRequest(
+            `/github/repositories/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}/branches`
+        );
+
+        const branches = Array.isArray(data.branches) ? data.branches : [];
+        githubElements.branch.innerHTML = "";
+
+        if (!branches.length) {
+            githubElements.branch.innerHTML =
+                '<option value="">No branches found</option>';
+            return;
+        }
+
+        branches.forEach(branch => {
+            const option = document.createElement("option");
+            option.value = branch.name;
+            option.textContent = branch.name;
+            githubElements.branch.appendChild(option);
+        });
+
+        githubElements.branch.value = repo.default_branch || branches[0].name;
+        githubElements.trigger.disabled = false;
+        await loadGitHubWorkflowRuns();
+    } catch (error) {
+        githubElements.branch.innerHTML =
+            '<option value="">Unable to load branches</option>';
+        showNotification(`GitHub branches: ${error.message}`, "error");
+    }
+}
+
+async function loadGitHubWorkflowRuns() {
+    const repo = selectedGitHubRepository();
+    if (!repo) return;
+
+    const [owner, repoName] = repo.full_name.split("/");
+    const branch = githubElements.branch.value;
+
+    setGitHubRunMessage("Loading workflow runs...");
+
+    try {
+        const params = new URLSearchParams({ owner, repo: repoName });
+        if (branch) params.set("branch", branch);
+
+        const data = await apiRequest(
+            `/github/workflows/runs?${params.toString()}`
+        );
+
+        const runs = Array.isArray(data.runs) ? data.runs : [];
+
+        if (!runs.length) {
+            setGitHubRunMessage("No workflow runs found for this selection.");
+            return;
+        }
+
+        githubElements.runs.innerHTML = runs.map(run => {
+            const status = escapeHTML(run.status || "unknown");
+            const conclusion = escapeHTML(run.conclusion || "—");
+            const url = typeof run.url === "string" &&
+                /^https:\/\/github\.com\//.test(run.url)
+                ? run.url
+                : "";
+
+            return `
+                <tr>
+                    <td><strong>${escapeHTML(run.name || "Workflow")}</strong></td>
+                    <td>${escapeHTML(run.branch || "—")}</td>
+                    <td>${escapeHTML(run.event || "—")}</td>
+                    <td><span class="status-pill ${getStatusClass(status)}">${status}</span></td>
+                    <td>${escapeHTML(conclusion)}</td>
+                    <td>${formatDate(run.created_at)}</td>
+                    <td>${url
+                        ? `<a class="github-run-link" href="${escapeHTML(url)}" target="_blank" rel="noopener noreferrer">View run ↗</a>`
+                        : "—"
+                    }</td>
+                </tr>
+            `;
+        }).join("");
+    } catch (error) {
+        setGitHubRunMessage(`Unable to load workflow runs: ${error.message}`);
+    }
+}
+
+async function triggerGitHubWorkflow() {
+    const repo = selectedGitHubRepository();
+    const branch = githubElements.branch.value;
+
+    if (!repo || !branch) {
+        showNotification("Select a repository and branch first.", "error");
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Trigger the GitHub Actions CI workflow for ${repo.full_name} (${branch})?`
+    );
+
+    if (!confirmed) return;
+
+    githubElements.trigger.disabled = true;
+    githubElements.trigger.textContent = "Triggering...";
+
+    try {
+        const [owner, repoName] = repo.full_name.split("/");
+
+        const result = await apiRequest("/github/workflows/dispatch", {
+            method: "POST",
+            body: JSON.stringify({ owner, repo: repoName, branch })
+        });
+
+        if (result.triggered !== true) {
+            throw new Error("GitHub did not confirm workflow dispatch.");
+        }
+
+        showNotification(
+            "GitHub accepted the workflow trigger. Refresh runs to check its result.",
+            "success"
+        );
+
+        await loadGitHubWorkflowRuns();
+    } catch (error) {
+        showNotification(`Workflow trigger failed: ${error.message}`, "error");
+    } finally {
+        githubElements.trigger.disabled = false;
+        githubElements.trigger.textContent = "▶ Trigger CI Workflow";
+    }
+}
+
+async function loadGitHubIntegration() {
+    const connected = await loadGitHubUser();
+    if (!connected) return;
+
+    await loadGitHubRepositories();
+}
+
+if (githubElements.repository) {
+    githubElements.repository.addEventListener("change", loadGitHubBranches);
+    githubElements.branch.addEventListener("change", loadGitHubWorkflowRuns);
+    githubElements.trigger.addEventListener("click", triggerGitHubWorkflow);
+    githubElements.refresh.addEventListener("click", loadGitHubIntegration);
+    githubElements.refreshRuns.addEventListener("click", loadGitHubWorkflowRuns);
+
+    loadGitHubIntegration();
+}

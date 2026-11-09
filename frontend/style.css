@@ -732,3 +732,114 @@ footer {
         flex-direction: column;
     }
 }
+
+
+/* GitHub Actions integration */
+.github-panel {
+    margin-bottom: 28px;
+}
+
+.github-user-row,
+.github-runs-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 22px 0;
+}
+
+.github-user-row > div,
+.github-runs-heading > div {
+    display: grid;
+    gap: 5px;
+}
+
+.github-muted,
+.github-controls label span {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.github-controls {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.7fr) auto;
+    align-items: end;
+    gap: 14px;
+    padding: 20px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+.github-controls label {
+    display: grid;
+    gap: 8px;
+}
+
+.github-controls select {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    color: var(--text);
+    background: var(--panel-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.github-trigger-button {
+    min-height: 42px;
+    padding: 10px 16px;
+    color: #fff;
+    background: #6554d9;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.github-trigger-button:hover:not(:disabled) {
+    background: #7969eb;
+}
+
+.github-trigger-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.github-runs-heading h3 {
+    margin: 0;
+}
+
+.github-runs-heading p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.github-run-link {
+    color: var(--blue);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.github-run-link:hover {
+    text-decoration: underline;
+}
+
+.github-disclaimer {
+    margin-top: 16px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+@media (max-width: 760px) {
+    .github-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .github-user-row,
+    .github-runs-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

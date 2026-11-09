@@ -27,6 +27,9 @@
                 <a class="nav-link" href="#deployments">
                     <span>⇧</span> Deployments
                 </a>
+                <a class="nav-link" href="#github-actions">
+                    <span>⌘</span> GitHub Actions
+                </a>
                 <a class="nav-link" href="#monitoring">
                     <span>◉</span> Monitoring
                 </a>
@@ -188,6 +191,84 @@
                 </div>
             </section>
 
+
+            <section id="github-actions" class="panel github-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>GitHub Actions Integration</h2>
+                        <p>Connect your repository and manage CI workflow runs.</p>
+                    </div>
+                    <span id="github-connection-status" class="status-pill status-unknown">
+                        Checking...
+                    </span>
+                </div>
+
+                <div class="github-user-row">
+                    <div>
+                        <span class="github-muted">Connected account</span>
+                        <strong id="github-user-name">Checking GitHub connection...</strong>
+                    </div>
+                    <button class="secondary-button" id="github-refresh-btn">
+                        ↻ Refresh GitHub
+                    </button>
+                </div>
+
+                <div class="github-controls">
+                    <label>
+                        <span>Repository</span>
+                        <select id="github-repository">
+                            <option value="">Loading repositories...</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Branch</span>
+                        <select id="github-branch">
+                            <option value="">Select repository first</option>
+                        </select>
+                    </label>
+                    <button class="github-trigger-button" id="github-trigger-btn" disabled>
+                        ▶ Trigger CI Workflow
+                    </button>
+                </div>
+
+                <div class="github-runs-heading">
+                    <div>
+                        <h3>Recent Workflow Runs</h3>
+                        <p>Live information retrieved from GitHub Actions.</p>
+                    </div>
+                    <button class="secondary-button" id="github-runs-refresh-btn">
+                        Refresh Runs
+                    </button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>WORKFLOW</th>
+                                <th>BRANCH</th>
+                                <th>EVENT</th>
+                                <th>STATUS</th>
+                                <th>RESULT</th>
+                                <th>CREATED</th>
+                                <th>DETAILS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="github-runs-table">
+                            <tr>
+                                <td colspan="7" class="empty-state">
+                                    Loading GitHub workflow runs...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="github-disclaimer">
+                    Workflow status and conclusions are fetched from the GitHub Actions API.
+                    Trigger acceptance does not itself mean that a workflow has passed.
+                </p>
+            </section>
+
             <section id="monitoring" class="panel monitoring-panel">
                 <div class="panel-heading">
                     <div>
@@ -225,7 +306,7 @@
                     <strong>Automated cloud deployment</strong>
                     <p>GitHub Actions, Docker build and cloud deployment automation are planned for the next development phase.</p>
                 </div>
-                <span class="coming-soon">COMING SOON</span>
+                <span class="coming-soon">IN PROGRESS</span>
             </section>
 
             <footer>
