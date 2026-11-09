@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: Run Backend Tests
+  test-and-build:
+    name: Test and Build Docker Image
     runs-on: ubuntu-latest
 
     steps:
@@ -28,3 +28,14 @@ jobs:
 
       - name: Run automated tests
         run: python -m pytest -v
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ML Service Docker Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./ml-service/Dockerfile
+          push: false
+          tags: model-setu-ml:latest
