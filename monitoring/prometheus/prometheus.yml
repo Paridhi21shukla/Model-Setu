@@ -11,4 +11,4 @@ scrape_configs:
   - job_name: "model-setu-ml"
     metrics_path: /metrics
     static_configs:
-      - targets: ["ml-service:5002"]
+      - targets: ["host.docker.internal:5002"]
