@@ -20,25 +20,33 @@ def init_db():
                 version TEXT NOT NULL,
                 status TEXT NOT NULL,
                 deployed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                is_active INTEGER NOT NULL DEFAULT 0
+                is_active INTEGER NOT NULL DEFAULT 0,
+                commit_sha TEXT,
+                started_at TEXT,
+                completed_at TEXT
             )
         """)
 
-        # Migrate existing databases that don't have is_active.
-        columns = [
+        columns = {
             row["name"]
             for row in connection.execute(
                 "PRAGMA table_info(deployments)"
             ).fetchall()
-        ]
+        }
 
-        if "is_active" not in columns:
-            connection.execute("""
-                ALTER TABLE deployments
-                ADD COLUMN is_active INTEGER NOT NULL DEFAULT 0
-            """)
+        migrations = {
+            "is_active": "INTEGER NOT NULL DEFAULT 0",
+            "commit_sha": "TEXT",
+            "started_at": "TEXT",
+            "completed_at": "TEXT"
+        }
 
-        # If no deployment is active, select the latest successful one.
+        for column, definition in migrations.items():
+            if column not in columns:
+                connection.execute(
+                    f"ALTER TABLE deployments ADD COLUMN {column} {definition}"
+                )
+
         active = connection.execute(
             "SELECT id FROM deployments WHERE is_active = 1 LIMIT 1"
         ).fetchone()
@@ -62,29 +70,41 @@ def init_db():
         connection.close()
 
 
-def create_deployment(version, status):
+def create_deployment(version, status, commit_sha=None):
     if not isinstance(version, str) or not version.strip():
         raise ValueError("Version is required")
 
     if status not in ("success", "failed", "pending"):
         raise ValueError("Invalid deployment status")
 
+    if commit_sha is not None and not isinstance(commit_sha, str):
+        raise ValueError("Commit SHA must be a string")
+
     connection = get_connection()
 
     try:
-        # A successful new deployment replaces the active deployment.
         if status == "success":
             connection.execute(
                 "UPDATE deployments SET is_active = 0"
             )
 
-        cursor = connection.execute(
-            """
-            INSERT INTO deployments (version, status, is_active)
-            VALUES (?, ?, ?)
-            """,
-            (version.strip(), status, 1 if status == "success" else 0)
-        )
+        cursor = connection.execute("""
+            INSERT INTO deployments (
+                version, status, is_active, commit_sha,
+                started_at, completed_at
+            )
+            VALUES (
+                ?, ?, ?, ?, CURRENT_TIMESTAMP,
+                CASE WHEN ? IN ('success', 'failed')
+                THEN CURRENT_TIMESTAMP ELSE NULL END
+            )
+        """, (
+            version.strip(),
+            status,
+            1 if status == "success" else 0,
+            commit_sha,
+            status
+        ))
 
         deployment_id = cursor.lastrowid
 
@@ -95,6 +115,61 @@ def create_deployment(version, status):
 
         connection.commit()
         return dict(row)
+
+    finally:
+        connection.close()
+
+
+def update_deployment_status(deployment_id, status):
+    if status not in ("success", "failed"):
+        raise ValueError("Final status must be success or failed")
+
+    connection = get_connection()
+
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+
+        deployment = connection.execute(
+            "SELECT * FROM deployments WHERE id = ?",
+            (deployment_id,)
+        ).fetchone()
+
+        if deployment is None:
+            connection.rollback()
+            return None
+
+        if deployment["status"] != "pending":
+            connection.rollback()
+            raise ValueError("Only pending deployments can be completed")
+
+        if status == "success":
+            connection.execute(
+                "UPDATE deployments SET is_active = 0"
+            )
+
+        connection.execute("""
+            UPDATE deployments
+            SET status = ?,
+                completed_at = CURRENT_TIMESTAMP,
+                is_active = ?
+            WHERE id = ?
+        """, (
+            status,
+            1 if status == "success" else 0,
+            deployment_id
+        ))
+
+        updated = connection.execute(
+            "SELECT * FROM deployments WHERE id = ?",
+            (deployment_id,)
+        ).fetchone()
+
+        connection.commit()
+        return dict(updated)
+
+    except Exception:
+        connection.rollback()
+        raise
 
     finally:
         connection.close()

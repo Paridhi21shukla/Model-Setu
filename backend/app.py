@@ -26,7 +26,8 @@ from backend.database import (
     get_all_deployments,
     get_deployment_by_id,
     get_active_deployment,
-    rollback_deployment
+    rollback_deployment,
+    update_deployment_status
 )
 
 app = Flask(__name__)
@@ -110,7 +111,12 @@ def create_new_deployment():
     if status not in ("success", "failed", "pending"):
         return jsonify({"error": "Invalid deployment status"}), 400
 
-    deployment = create_deployment(deployment_version, status)
+    commit_sha = data.get("commit_sha")
+
+    if commit_sha is not None and not isinstance(commit_sha, str):
+        return jsonify({"error": "commit_sha must be a string"}), 400
+
+    deployment = create_deployment(deployment_version, status, commit_sha)
 
     return jsonify({
         "message": "Deployment created successfully",
@@ -147,6 +153,31 @@ def active_deployment():
 
     return jsonify({
         "active_deployment": deployment
+    }), 200
+
+
+@app.route("/deployments/<int:deployment_id>/status", methods=["PATCH"])
+def update_deployment(deployment_id):
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must contain JSON"}), 400
+
+    status = data.get("status")
+
+    if status not in ("success", "failed"):
+        return jsonify({"error": "Status must be success or failed"}), 400
+
+    deployment = update_deployment_status(deployment_id, status)
+
+    if deployment is None:
+        return jsonify({
+            "error": "Deployment not found or cannot be updated"
+        }), 404
+
+    return jsonify({
+        "message": "Deployment status updated successfully",
+        "deployment": deployment
     }), 200
 
 

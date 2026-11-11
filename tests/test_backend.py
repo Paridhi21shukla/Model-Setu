@@ -208,3 +208,65 @@ def test_metrics_endpoint(client):
 
     assert response.status_code == 200
     assert "text/plain" in response.content_type
+
+
+# -------------------------
+# DEPLOYMENT LIFECYCLE TESTS
+# -------------------------
+
+def test_create_deployment_with_commit_sha(client):
+    response = client.post(
+        "/deployments",
+        json={
+            "version": "3.0.0",
+            "status": "pending",
+            "commit_sha": "abc123"
+        }
+    )
+
+    assert response.status_code == 201
+    deployment = response.json["deployment"]
+    assert deployment["status"] == "pending"
+    assert deployment["commit_sha"] == "abc123"
+    assert deployment["started_at"] is not None
+    assert deployment["completed_at"] is None
+
+
+def test_update_deployment_status_success(client):
+    created = client.post(
+        "/deployments",
+        json={
+            "version": "3.0.0",
+            "status": "pending",
+            "commit_sha": "abc123"
+        }
+    )
+
+    deployment_id = created.json["deployment"]["id"]
+
+    response = client.patch(
+        f"/deployments/{deployment_id}/status",
+        json={"status": "success"}
+    )
+
+    assert response.status_code == 200
+    deployment = response.json["deployment"]
+    assert deployment["status"] == "success"
+    assert deployment["completed_at"] is not None
+    assert deployment["is_active"] == 1
+
+
+def test_update_deployment_status_invalid(client):
+    created = client.post(
+        "/deployments",
+        json={"version": "3.0.0", "status": "pending"}
+    )
+
+    deployment_id = created.json["deployment"]["id"]
+
+    response = client.patch(
+        f"/deployments/{deployment_id}/status",
+        json={"status": "pending"}
+    )
+
+    assert response.status_code == 400
