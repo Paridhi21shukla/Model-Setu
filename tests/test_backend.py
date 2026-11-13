@@ -270,3 +270,126 @@ def test_update_deployment_status_invalid(client):
     )
 
     assert response.status_code == 400
+
+
+# -------------------------
+# SECURE WEBHOOK TESTS
+# -------------------------
+
+import hashlib
+import hmac
+import json
+
+
+def make_webhook_signature(payload, secret):
+    return "sha256=" + hmac.new(
+        secret.encode("utf-8"),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+
+
+def test_webhook_rejects_invalid_signature(client, monkeypatch):
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", "test-secret")
+
+    response = client.post(
+        "/webhook",
+        data=b'{"event":"start"}',
+        headers={"X-Model-Setu-Signature": "sha256=invalid"},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 401
+
+
+def test_webhook_rejects_missing_secret(client, monkeypatch):
+    monkeypatch.delenv("DEPLOYMENT_WEBHOOK_SECRET", raising=False)
+
+    response = client.post("/webhook", json={"event": "start"})
+
+    assert response.status_code == 503
+
+
+def test_webhook_start_event(client, monkeypatch):
+    secret = "test-secret"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+
+    payload = json.dumps({
+        "event": "start",
+        "run_id": "test-run-456",
+        "version": "ci-456",
+        "commit_sha": "test-commit-456"
+    }, separators=(",", ":")).encode()
+
+    signature = make_webhook_signature(payload, secret)
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": signature},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 201
+    assert response.json["status"] == "pending"
+    assert response.json["run_id"] == "test-run-456"
+
+
+def test_webhook_completion_event(client, monkeypatch):
+    secret = "test-secret"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+
+    deployment = database.create_deployment(
+        version="ci-789",
+        status="pending",
+        commit_sha="test-commit-789",
+        run_id="test-run-789"
+    )
+
+    payload = json.dumps({
+        "event": "completed",
+        "run_id": "test-run-789",
+        "deployment_id": deployment["id"],
+        "status": "success"
+    }, separators=(",", ":")).encode()
+
+    signature = make_webhook_signature(payload, secret)
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": signature},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 200
+    assert response.json["status"] == "success"
+
+
+def test_webhook_rejects_wrong_run_id(client, monkeypatch):
+    secret = "test-secret"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+
+    deployment = database.create_deployment(
+        version="ci-999",
+        status="pending",
+        run_id="correct-run-id"
+    )
+
+    payload = json.dumps({
+        "event": "completed",
+        "run_id": "wrong-run-id",
+        "deployment_id": deployment["id"],
+        "status": "success"
+    }, separators=(",", ":")).encode()
+
+    signature = make_webhook_signature(payload, secret)
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": signature},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 404

@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DATABASE_PATH = Path(__file__).resolve().parent / "deployments.db"
+DATABASE_PATH = Path(__import__("os").environ.get("DATABASE_PATH", str(Path(__file__).resolve().parent / "deployments.db")))
 
 
 def get_connection():
@@ -38,7 +38,8 @@ def init_db():
             "is_active": "INTEGER NOT NULL DEFAULT 0",
             "commit_sha": "TEXT",
             "started_at": "TEXT",
-            "completed_at": "TEXT"
+            "completed_at": "TEXT",
+            "run_id": "TEXT"
         }
 
         for column, definition in migrations.items():
@@ -70,7 +71,7 @@ def init_db():
         connection.close()
 
 
-def create_deployment(version, status, commit_sha=None):
+def create_deployment(version, status, commit_sha=None, run_id=None):
     if not isinstance(version, str) or not version.strip():
         raise ValueError("Version is required")
 
@@ -79,6 +80,9 @@ def create_deployment(version, status, commit_sha=None):
 
     if commit_sha is not None and not isinstance(commit_sha, str):
         raise ValueError("Commit SHA must be a string")
+
+    if run_id is not None and not isinstance(run_id, str):
+        raise ValueError("Run ID must be a string")
 
     connection = get_connection()
 
@@ -91,19 +95,21 @@ def create_deployment(version, status, commit_sha=None):
         cursor = connection.execute("""
             INSERT INTO deployments (
                 version, status, is_active, commit_sha,
-                started_at, completed_at
+                started_at, completed_at, run_id
             )
             VALUES (
                 ?, ?, ?, ?, CURRENT_TIMESTAMP,
                 CASE WHEN ? IN ('success', 'failed')
-                THEN CURRENT_TIMESTAMP ELSE NULL END
+                THEN CURRENT_TIMESTAMP ELSE NULL END,
+                ?
             )
         """, (
             version.strip(),
             status,
             1 if status == "success" else 0,
             commit_sha,
-            status
+            status,
+            run_id
         ))
 
         deployment_id = cursor.lastrowid

@@ -21,3 +21,6 @@ frontend/build/
 # SQLite database files
 *.db
 *.db-journal
+
+# Local backup files
+*.backup

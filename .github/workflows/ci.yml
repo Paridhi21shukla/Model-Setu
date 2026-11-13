@@ -26,6 +26,54 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Start deployment tracking
+        id: webhook_start
+        if: github.event_name != 'pull_request'
+        env:
+          DEPLOYMENT_WEBHOOK_SECRET: ${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}
+          BACKEND_URL: https://model-setu-backend.onrender.com
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          python - <<'PY'
+          import os
+          import json
+          import hmac
+          import hashlib
+          import urllib.request
+
+          secret = os.environ["DEPLOYMENT_WEBHOOK_SECRET"]
+          payload = json.dumps({
+              "event": "start",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "version": "ci-" + os.environ["GITHUB_RUN_NUMBER"],
+              "commit_sha": os.environ["GITHUB_SHA"]
+          }, separators=(",", ":")).encode()
+
+          signature = "sha256=" + hmac.new(
+              secret.encode(), payload, hashlib.sha256
+          ).hexdigest()
+
+          req = urllib.request.Request(
+              os.environ["BACKEND_URL"] + "/webhook",
+              data=payload,
+              headers={
+                  "Content-Type": "application/json",
+                  "X-Model-Setu-Signature": signature
+              },
+              method="POST"
+          )
+
+          with urllib.request.urlopen(req, timeout=60) as response:
+              result = json.loads(response.read())
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"deployment_id={result['deployment_id']}\n")
+
+          print("Deployment tracking started:", result["deployment_id"])
+          PY
+
       - name: Run automated tests
         run: python -m pytest -v
 
@@ -46,3 +94,53 @@ jobs:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Complete deployment tracking
+        if: always() && steps.webhook_start.outputs.deployment_id != ''
+        env:
+          DEPLOYMENT_WEBHOOK_SECRET: ${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}
+          BACKEND_URL: https://model-setu-backend.onrender.com
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          DEPLOYMENT_ID: ${{ steps.webhook_start.outputs.deployment_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          python - <<'PY'
+          import os
+          import json
+          import hmac
+          import hashlib
+          import urllib.request
+
+          secret = os.environ["DEPLOYMENT_WEBHOOK_SECRET"]
+          payload = json.dumps({
+              "event": "completed",
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "deployment_id": int(os.environ["DEPLOYMENT_ID"]),
+              "commit_sha": os.environ["GITHUB_SHA"],
+              "status": (
+                  "success"
+                  if os.environ["JOB_STATUS"] == "success"
+                  else "failed"
+              )
+          }, separators=(",", ":")).encode()
+
+          signature = "sha256=" + hmac.new(
+              secret.encode(), payload, hashlib.sha256
+          ).hexdigest()
+
+          req = urllib.request.Request(
+              os.environ["BACKEND_URL"] + "/webhook",
+              data=payload,
+              headers={
+                  "Content-Type": "application/json",
+                  "X-Model-Setu-Signature": signature
+              },
+              method="POST"
+          )
+
+          with urllib.request.urlopen(req, timeout=60) as response:
+              result = json.loads(response.read())
+
+          print("Deployment tracking completed:", result)
+          PY

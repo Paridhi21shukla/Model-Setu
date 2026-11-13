@@ -129,6 +129,7 @@ function renderStatistics(deployments) {
     elements.failed.textContent = failed;
 }
 
+
 function renderActiveDeployment(deployment) {
     if (!deployment) {
         elements.activeVersion.textContent = "None";
@@ -139,14 +140,18 @@ function renderActiveDeployment(deployment) {
                 Create a successful deployment record first.
             </div>
         `;
-
         return;
     }
 
     const version = escapeHTML(deployment.version || "Unknown");
     const status = escapeHTML(deployment.status || "Unknown");
     const id = escapeHTML(deployment.id);
+    const commitSha = deployment.commit_sha
+        ? escapeHTML(deployment.commit_sha)
+        : "—";
     const deployedAt = formatDate(deployment.deployed_at);
+    const startedAt = formatDate(deployment.started_at);
+    const completedAt = formatDate(deployment.completed_at);
 
     elements.activeVersion.textContent = version;
 
@@ -175,8 +180,20 @@ function renderActiveDeployment(deployment) {
                 <strong>${status}</strong>
             </div>
             <div class="detail-item">
+                <span>Commit SHA</span>
+                <strong>${commitSha}</strong>
+            </div>
+            <div class="detail-item">
                 <span>Deployed At</span>
                 <strong>${deployedAt}</strong>
+            </div>
+            <div class="detail-item">
+                <span>Started At</span>
+                <strong>${startedAt}</strong>
+            </div>
+            <div class="detail-item">
+                <span>Completed At</span>
+                <strong>${completedAt}</strong>
             </div>
         </div>
     `;
@@ -186,7 +203,7 @@ function renderDeploymentHistory(deployments, activeDeployment) {
     if (deployments.length === 0) {
         elements.table.innerHTML = `
             <tr>
-                <td colspan="6" class="empty-state">
+                <td colspan="9" class="empty-state">
                     No deployment records found.
                 </td>
             </tr>
@@ -202,7 +219,12 @@ function renderDeploymentHistory(deployments, activeDeployment) {
         const id = escapeHTML(deployment.id);
         const version = escapeHTML(deployment.version || "Unknown");
         const status = escapeHTML(deployment.status || "Unknown");
-        const date = formatDate(deployment.deployed_at);
+        const commitSha = deployment.commit_sha
+            ? escapeHTML(deployment.commit_sha)
+            : "—";
+        const deployedAt = formatDate(deployment.deployed_at);
+        const startedAt = formatDate(deployment.started_at);
+        const completedAt = formatDate(deployment.completed_at);
 
         const isActive =
             deployment.is_active === true ||
@@ -222,7 +244,10 @@ function renderDeploymentHistory(deployments, activeDeployment) {
                         ${status}
                     </span>
                 </td>
-                <td>${date}</td>
+                <td>${commitSha}</td>
+                <td>${deployedAt}</td>
+                <td>${startedAt}</td>
+                <td>${completedAt}</td>
                 <td>
                     ${
                         isActive
@@ -235,9 +260,9 @@ function renderDeploymentHistory(deployments, activeDeployment) {
                         class="rollback-button"
                         data-id="${id}"
                         ${canRollback ? "" : "disabled"}
-                        title="${canRollback ? "Roll back to this successful record" : "Rollback unavailable"}"
+                        title="${canRollback ? "Restore this record in local deployment history only; Render will not be rolled back" : "Rollback unavailable"}"
                     >
-                        Rollback
+                        Rollback (DB)
                     </button>
                 </td>
             </tr>

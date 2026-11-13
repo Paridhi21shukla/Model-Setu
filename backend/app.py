@@ -7,6 +7,9 @@ from prometheus_client import (
     CONTENT_TYPE_LATEST
 )
 import time
+import hmac
+import hashlib
+import os
 from dotenv import load_dotenv
 
 from backend.github_service import (
@@ -31,6 +34,23 @@ from backend.database import (
 )
 
 app = Flask(__name__)
+
+
+def verify_webhook_signature(payload, signature):
+    secret = os.getenv("DEPLOYMENT_WEBHOOK_SECRET")
+
+    if not secret or not signature:
+        return False
+
+    expected_signature = "sha256=" + hmac.new(
+        secret.encode("utf-8"),
+        payload,
+        hashlib.sha256
+    ).hexdigest()
+
+    return hmac.compare_digest(expected_signature, signature)
+
+
 
 PROJECT_NAME = "Model-Setu"
 APP_VERSION = "0.1.0"
@@ -283,6 +303,82 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
+
+
+@app.route("/webhook", methods=["POST"])
+def deployment_webhook():
+    secret = os.getenv("DEPLOYMENT_WEBHOOK_SECRET")
+    if not secret:
+        return jsonify({"error": "Webhook secret is not configured"}), 503
+
+    payload = request.get_data(cache=True)
+    signature = request.headers.get("X-Model-Setu-Signature", "")
+
+    if not verify_webhook_signature(payload, signature):
+        return jsonify({"error": "Invalid webhook signature"}), 401
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid JSON payload"}), 400
+
+    event = data.get("event")
+    run_id = data.get("run_id")
+    commit_sha = data.get("commit_sha")
+    version = data.get("version")
+
+    if not isinstance(run_id, str) or not run_id.strip():
+        return jsonify({"error": "Valid run_id is required"}), 400
+
+    if event == "start":
+        if not isinstance(version, str) or not version.strip():
+            return jsonify({"error": "Valid version is required"}), 400
+
+        if not isinstance(commit_sha, str) or not commit_sha.strip():
+            return jsonify({"error": "Valid commit_sha is required"}), 400
+
+        deployment = create_deployment(
+            version=version,
+            status="pending",
+            commit_sha=commit_sha,
+            run_id=run_id
+        )
+
+        return jsonify({
+            "message": "Deployment tracking started",
+            "deployment_id": deployment["id"],
+            "run_id": run_id,
+            "status": deployment["status"]
+        }), 201
+
+    if event == "completed":
+        deployment_id = data.get("deployment_id")
+        status = data.get("status")
+
+        if not isinstance(deployment_id, int) or isinstance(deployment_id, bool):
+            return jsonify({"error": "Valid deployment_id is required"}), 400
+
+        if status not in ("success", "failed"):
+            return jsonify({"error": "Status must be success or failed"}), 400
+
+        deployment = get_deployment_by_id(deployment_id)
+
+        if deployment is None or deployment.get("run_id") != run_id:
+            return jsonify({"error": "Deployment record not found for this run"}), 404
+
+        try:
+            updated = update_deployment_status(deployment_id, status)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 409
+
+        return jsonify({
+            "message": "Deployment tracking completed",
+            "deployment_id": updated["id"],
+            "run_id": run_id,
+            "status": updated["status"]
+        }), 200
+
+    return jsonify({"error": "Unsupported webhook event"}), 400
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5001, debug=False)
