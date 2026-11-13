@@ -1,7 +1,7 @@
 // Model-Setu Dashboard
 // Connects the frontend to the Flask backend running on port 5001.
 
-const API_BASE_URL = "http://127.0.0.1:5001";
+const API_BASE_URL = "https://model-setu-backend.onrender.com";
 
 const elements = {
     total: document.getElementById("total-deployments"),
