@@ -1,46 +1,137 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DATABASE_PATH = Path(__import__("os").environ.get("DATABASE_PATH", str(Path(__file__).resolve().parent / "deployments.db")))
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_PATH = Path(
+    os.getenv(
+        "DATABASE_PATH",
+        str(Path(__file__).resolve().parent / "deployments.db")
+    )
+)
+
+
+class PostgreSQLConnection:
+    """Small compatibility wrapper for SQLite-style database operations."""
+
+    is_postgres = True
+
+    def __init__(self, database_url):
+        self.connection = psycopg2.connect(database_url)
+
+    def execute(self, query, params=()):
+        query = query.replace("?", "%s")
+        cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+        cursor.execute(query, params)
+        return cursor
+
+    def commit(self):
+        self.connection.commit()
+
+    def rollback(self):
+        self.connection.rollback()
+
+    def close(self):
+        self.connection.close()
+
+
+class SQLiteConnection:
+    is_postgres = False
+
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, query, params=()):
+        return self.connection.execute(query, params)
+
+    def commit(self):
+        self.connection.commit()
+
+    def rollback(self):
+        self.connection.rollback()
+
+    def close(self):
+        self.connection.close()
 
 
 def get_connection():
+    if DATABASE_URL:
+        return PostgreSQLConnection(DATABASE_URL)
+
     connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
-    return connection
+    return SQLiteConnection(connection)
 
 
 def init_db():
     connection = get_connection()
 
     try:
-        connection.execute("""
-            CREATE TABLE IF NOT EXISTS deployments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                version TEXT NOT NULL,
-                status TEXT NOT NULL,
-                deployed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                is_active INTEGER NOT NULL DEFAULT 0,
-                commit_sha TEXT,
-                started_at TEXT,
-                completed_at TEXT
-            )
-        """)
+        if connection.is_postgres:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS deployments (
+                    id BIGSERIAL PRIMARY KEY,
+                    version TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    deployed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER NOT NULL DEFAULT 0,
+                    commit_sha TEXT,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    run_id TEXT
+                )
+            """)
 
-        columns = {
-            row["name"]
-            for row in connection.execute(
-                "PRAGMA table_info(deployments)"
-            ).fetchall()
-        }
+            migrations = {
+                "is_active": "INTEGER NOT NULL DEFAULT 0",
+                "commit_sha": "TEXT",
+                "started_at": "TIMESTAMP",
+                "completed_at": "TIMESTAMP",
+                "run_id": "TEXT"
+            }
 
-        migrations = {
-            "is_active": "INTEGER NOT NULL DEFAULT 0",
-            "commit_sha": "TEXT",
-            "started_at": "TEXT",
-            "completed_at": "TEXT",
-            "run_id": "TEXT"
-        }
+            columns = {
+                row["column_name"]
+                for row in connection.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_name = 'deployments'
+                """).fetchall()
+            }
+
+        else:
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS deployments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    version TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    deployed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    is_active INTEGER NOT NULL DEFAULT 0,
+                    commit_sha TEXT,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    run_id TEXT
+                )
+            """)
+
+            columns = {
+                row["name"]
+                for row in connection.execute(
+                    "PRAGMA table_info(deployments)"
+                ).fetchall()
+            }
+
+            migrations = {
+                "is_active": "INTEGER NOT NULL DEFAULT 0",
+                "commit_sha": "TEXT",
+                "started_at": "TEXT",
+                "completed_at": "TEXT",
+                "run_id": "TEXT"
+            }
 
         for column, definition in migrations.items():
             if column not in columns:
@@ -92,7 +183,7 @@ def create_deployment(version, status, commit_sha=None, run_id=None):
                 "UPDATE deployments SET is_active = 0"
             )
 
-        cursor = connection.execute("""
+        query = """
             INSERT INTO deployments (
                 version, status, is_active, commit_sha,
                 started_at, completed_at, run_id
@@ -103,16 +194,23 @@ def create_deployment(version, status, commit_sha=None, run_id=None):
                 THEN CURRENT_TIMESTAMP ELSE NULL END,
                 ?
             )
-        """, (
+        """
+
+        params = (
             version.strip(),
             status,
             1 if status == "success" else 0,
             commit_sha,
             status,
             run_id
-        ))
+        )
 
-        deployment_id = cursor.lastrowid
+        if connection.is_postgres:
+            cursor = connection.execute(query + " RETURNING id", params)
+            deployment_id = cursor.fetchone()["id"]
+        else:
+            cursor = connection.execute(query, params)
+            deployment_id = cursor.lastrowid
 
         row = connection.execute(
             "SELECT * FROM deployments WHERE id = ?",
@@ -133,7 +231,7 @@ def update_deployment_status(deployment_id, status):
     connection = get_connection()
 
     try:
-        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("BEGIN")
 
         deployment = connection.execute(
             "SELECT * FROM deployments WHERE id = ?",
@@ -228,7 +326,7 @@ def rollback_deployment(deployment_id):
     connection = get_connection()
 
     try:
-        connection.execute("BEGIN IMMEDIATE")
+        connection.execute("BEGIN")
 
         deployment = connection.execute(
             "SELECT * FROM deployments WHERE id = ?",
