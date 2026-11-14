@@ -262,7 +262,7 @@ function renderDeploymentHistory(deployments, activeDeployment) {
                         ${canRollback ? "" : "disabled"}
                         title="${canRollback ? "Restore this record in local deployment history only; Render will not be rolled back" : "Rollback unavailable"}"
                     >
-                        Rollback (DB)
+                        Rollback (Render)
                     </button>
                 </td>
             </tr>
@@ -370,22 +370,57 @@ async function loadMetrics() {
 
 async function rollbackDeployment(deploymentId) {
     const confirmed = window.confirm(
-        `Are you sure you want to make deployment #${deploymentId} active?`
+        `This will trigger an actual Render rollback for deployment #${deploymentId}. Continue?`
     );
 
     if (!confirmed) return;
 
     try {
-        await apiRequest(`/rollback/${encodeURIComponent(deploymentId)}`, {
-            method: "POST"
-        });
-
-        showNotification(
-            `Rollback successful. Deployment #${deploymentId} is now active.`,
-            "success"
+        const response = await apiRequest(
+            `/rollback/${encodeURIComponent(deploymentId)}`,
+            { method: "POST" }
         );
 
-        await refreshDashboard();
+        if (response.status === "pending" && response.rollback_id) {
+            showNotification("Render rollback started. Waiting for deployment...", "info");
+
+            const maxAttempts = 60;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 5000));
+
+                const statusResponse = await apiRequest(
+                    `/rollback/status/${encodeURIComponent(response.rollback_id)}`
+                );
+
+                const rollback = statusResponse.rollback;
+
+                if (rollback && rollback.status === "success") {
+                    showNotification(
+                        `Render rollback completed. Deployment #${deploymentId} is now active.`,
+                        "success"
+                    );
+                    await refreshDashboard();
+                    return;
+                }
+
+                if (rollback && rollback.status === "failed") {
+                    throw new Error("Render could not complete the rollback.");
+                }
+            }
+
+            throw new Error(
+                "Rollback is still pending after 5 minutes. Check Render deployment status."
+            );
+        }
+
+        if (response.message === "This deployment is already live on Render") {
+            showNotification(response.message, "info");
+            await refreshDashboard();
+            return;
+        }
+
+        throw new Error(response.error || "Unexpected rollback response.");
     } catch (error) {
         showNotification(`Rollback failed: ${error.message}`, "error");
     }

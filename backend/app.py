@@ -30,7 +30,17 @@ from backend.database import (
     get_deployment_by_id,
     get_active_deployment,
     rollback_deployment,
-    update_deployment_status
+    update_deployment_status,
+    create_rollback_operation,
+    get_rollback_operation,
+    finish_rollback_operation
+)
+
+from backend.render_service import (
+    list_service_deploys,
+    get_service_deploy,
+    rollback_render_deploy,
+    RenderAPIError
 )
 
 app = Flask(__name__)
@@ -203,16 +213,148 @@ def update_deployment(deployment_id):
 
 @app.route("/rollback/<int:deployment_id>", methods=["POST"])
 def rollback(deployment_id):
-    deployment, error = rollback_deployment(deployment_id)
+    deployment = get_deployment_by_id(deployment_id)
 
-    if error:
-        status_code = 404 if error == "Deployment not found" else 400
-        return jsonify({"error": error}), status_code
+    if deployment is None:
+        return jsonify({"error": "Deployment not found"}), 404
 
-    return jsonify({
-        "message": "Rollback successful",
-        "active_deployment": deployment
-    }), 200
+    if deployment["status"] != "success":
+        return jsonify({
+            "error": "Only successful deployments can be rolled back"
+        }), 400
+
+    commit_sha = deployment.get("commit_sha")
+
+    if not commit_sha:
+        return jsonify({
+            "error": "Deployment does not have a commit SHA"
+        }), 400
+
+    try:
+        render_deploys = list_service_deploys()
+
+        matching_deploys = []
+
+        for item in render_deploys:
+            render_deploy = item.get("deploy", item)
+            commit = render_deploy.get("commit") or {}
+            render_commit_sha = commit.get("id")
+
+            if render_commit_sha == commit_sha:
+                if render_deploy.get("status") in ("live", "deactivated"):
+                    matching_deploys.append(render_deploy)
+
+        if not matching_deploys:
+            return jsonify({
+                "error": "No matching successful Render deployment found"
+            }), 404
+
+        target_render_deploy = matching_deploys[0]
+
+        if target_render_deploy.get("status") == "live":
+            return jsonify({
+                "message": "This deployment is already live on Render"
+            }), 200
+
+        render_response = rollback_render_deploy(
+            target_render_deploy["id"]
+        )
+
+        render_response = render_response.get(
+            "deploy", render_response
+        )
+
+        new_render_deploy_id = render_response.get("id")
+
+        if not new_render_deploy_id:
+            return jsonify({
+                "error": "Render did not return a rollback deployment ID"
+            }), 502
+
+        rollback_id, error = create_rollback_operation(
+            deployment_id,
+            new_render_deploy_id
+        )
+
+        if error:
+            return jsonify({"error": error}), 400
+
+        return jsonify({
+            "message": "Render rollback started",
+            "rollback_id": rollback_id,
+            "render_deploy_id": new_render_deploy_id,
+            "status": "pending"
+        }), 202
+
+    except RenderAPIError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+
+@app.route("/rollback/status/<int:rollback_id>", methods=["GET"])
+def rollback_status(rollback_id):
+    operation = get_rollback_operation(rollback_id)
+
+    if operation is None:
+        return jsonify({"error": "Rollback operation not found"}), 404
+
+    if operation["status"] != "pending":
+        return jsonify({
+            "rollback": operation
+        }), 200
+
+    try:
+        render_deploy = get_service_deploy(
+            operation["render_deploy_id"]
+        )
+
+        render_deploy = render_deploy.get(
+            "deploy", render_deploy
+        )
+
+        render_status = render_deploy.get("status")
+
+        if render_status == "live":
+            updated, error = finish_rollback_operation(
+                rollback_id, "success"
+            )
+
+            if error:
+                return jsonify({"error": error}), 400
+
+            return jsonify({
+                "message": "Render rollback completed successfully",
+                "rollback": updated
+            }), 200
+
+        failed_statuses = (
+            "build_failed",
+            "update_failed",
+            "canceled",
+            "pre_deploy_failed"
+        )
+
+        if render_status in failed_statuses:
+            updated, error = finish_rollback_operation(
+                rollback_id, "failed"
+            )
+
+            if error:
+                return jsonify({"error": error}), 400
+
+            return jsonify({
+                "message": "Render rollback failed",
+                "rollback": updated,
+                "render_status": render_status
+            }), 200
+
+        return jsonify({
+            "message": "Render rollback is still in progress",
+            "status": "pending",
+            "render_status": render_status
+        }), 200
+
+    except RenderAPIError as exc:
+        return jsonify({"error": str(exc)}), 502
 
 
 @app.route("/metrics", methods=["GET"])

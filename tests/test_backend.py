@@ -152,30 +152,166 @@ def test_no_active_deployment(client):
 # ROLLBACK TESTS
 # -------------------------
 
-def test_rollback_successful_deployment(client):
+def test_rollback_successful_deployment(client, monkeypatch):
+    from backend import app as backend_app
+
     first = client.post(
         "/deployments",
-        json={"version": "1.0.0", "status": "success"}
+        json={
+            "version": "1.0.0",
+            "status": "success",
+            "commit_sha": "old-commit"
+        }
     )
 
     client.post(
         "/deployments",
-        json={"version": "2.0.0", "status": "success"}
+        json={
+            "version": "2.0.0",
+            "status": "success",
+            "commit_sha": "new-commit"
+        }
     )
 
     first_id = first.json["deployment"]["id"]
 
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [{
+            "id": "render-old-deploy",
+            "status": "deactivated",
+            "commit": {"id": "old-commit"}
+        }]
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: {"id": "render-rollback-123"}
+    )
+
     response = client.post(f"/rollback/{first_id}")
 
-    assert response.status_code == 200
-    assert response.json["message"] == "Rollback successful"
-    assert response.json["active_deployment"]["version"] == "1.0.0"
-    assert response.json["active_deployment"]["is_active"] == 1
+    assert response.status_code == 202
+    assert response.json["status"] == "pending"
 
     active_response = client.get("/active-deployment")
+    assert active_response.json["active_deployment"]["version"] == "2.0.0"
 
-    assert active_response.status_code == 200
-    assert active_response.json["active_deployment"]["id"] == first_id
+
+def test_rollback_becomes_active_when_render_is_live(client, monkeypatch):
+    from backend import app as backend_app
+
+    first = client.post(
+        "/deployments",
+        json={
+            "version": "1.0.0",
+            "status": "success",
+            "commit_sha": "old-commit"
+        }
+    )
+
+    client.post(
+        "/deployments",
+        json={
+            "version": "2.0.0",
+            "status": "success",
+            "commit_sha": "new-commit"
+        }
+    )
+
+    first_id = first.json["deployment"]["id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [{
+            "id": "render-old-deploy",
+            "status": "deactivated",
+            "commit": {"id": "old-commit"}
+        }]
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: {"id": "render-rollback-123"}
+    )
+
+    started = client.post(f"/rollback/{first_id}")
+    rollback_id = started.json["rollback_id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda deploy_id: {"id": deploy_id, "status": "live"}
+    )
+
+    response = client.get(f"/rollback/status/{rollback_id}")
+
+    assert response.status_code == 200
+    assert response.json["rollback"]["status"] == "success"
+
+    active = client.get("/active-deployment")
+    assert active.json["active_deployment"]["id"] == first_id
+
+
+def test_rollback_render_failure(client, monkeypatch):
+    from backend import app as backend_app
+
+    first = client.post(
+        "/deployments",
+        json={
+            "version": "1.0.0",
+            "status": "success",
+            "commit_sha": "old-commit"
+        }
+    )
+
+    client.post(
+        "/deployments",
+        json={
+            "version": "2.0.0",
+            "status": "success",
+            "commit_sha": "new-commit"
+        }
+    )
+
+    first_id = first.json["deployment"]["id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [{
+            "id": "render-old-deploy",
+            "status": "deactivated",
+            "commit": {"id": "old-commit"}
+        }]
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: {"id": "render-rollback-123"}
+    )
+
+    started = client.post(f"/rollback/{first_id}")
+    rollback_id = started.json["rollback_id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda deploy_id: {"id": deploy_id, "status": "build_failed"}
+    )
+
+    response = client.get(f"/rollback/status/{rollback_id}")
+
+    assert response.status_code == 200
+    assert response.json["rollback"]["status"] == "failed"
+
+    active = client.get("/active-deployment")
+    assert active.json["active_deployment"]["version"] == "2.0.0"
 
 
 def test_rollback_failed_deployment(client):
@@ -185,7 +321,6 @@ def test_rollback_failed_deployment(client):
     )
 
     deployment_id = failed.json["deployment"]["id"]
-
     response = client.post(f"/rollback/{deployment_id}")
 
     assert response.status_code == 400
