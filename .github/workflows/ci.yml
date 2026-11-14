@@ -92,6 +92,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare lowercase GHCR image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/model-setu-ml" >> "$GITHUB_OUTPUT"
+
       - name: Build and Publish ML Service Docker Image
         uses: docker/build-push-action@v6
         with:
@@ -99,8 +103,8 @@ jobs:
           file: ./ml-service/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/model-setu-ml:latest
-            ghcr.io/${{ github.repository_owner }}/model-setu-ml:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
 
       - name: Trigger Render Deployment
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
