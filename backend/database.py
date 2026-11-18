@@ -187,7 +187,9 @@ def init_db():
         connection.close()
 
 
-def create_deployment(version, status, commit_sha=None, run_id=None):
+def create_deployment(
+    version, status, commit_sha=None, run_id=None, render_deploy_id=None
+):
     if not isinstance(version, str) or not version.strip():
         raise ValueError("Version is required")
 
@@ -211,13 +213,13 @@ def create_deployment(version, status, commit_sha=None, run_id=None):
         query = """
             INSERT INTO deployments (
                 version, status, is_active, commit_sha,
-                started_at, completed_at, run_id
+                started_at, completed_at, run_id, render_deploy_id
             )
             VALUES (
                 ?, ?, ?, ?, CURRENT_TIMESTAMP,
                 CASE WHEN ? IN ('success', 'failed')
                 THEN CURRENT_TIMESTAMP ELSE NULL END,
-                ?
+                ?, ?
             )
         """
 
@@ -227,7 +229,8 @@ def create_deployment(version, status, commit_sha=None, run_id=None):
             1 if status == "success" else 0,
             commit_sha,
             status,
-            run_id
+            run_id,
+            render_deploy_id
         )
 
         if connection.is_postgres:
@@ -249,7 +252,9 @@ def create_deployment(version, status, commit_sha=None, run_id=None):
         connection.close()
 
 
-def update_deployment_status(deployment_id, status):
+def update_deployment_status(
+    deployment_id, status, render_deploy_id=None
+):
     if status not in ("success", "failed"):
         raise ValueError("Final status must be success or failed")
 
@@ -280,11 +285,13 @@ def update_deployment_status(deployment_id, status):
             UPDATE deployments
             SET status = ?,
                 completed_at = CURRENT_TIMESTAMP,
-                is_active = ?
+                is_active = ?,
+                render_deploy_id = COALESCE(?, render_deploy_id)
             WHERE id = ?
         """, (
             status,
             1 if status == "success" else 0,
+            render_deploy_id,
             deployment_id
         ))
 
@@ -378,115 +385,6 @@ def rollback_deployment(deployment_id):
         updated = connection.execute(
             "SELECT * FROM deployments WHERE id = ?",
             (deployment_id,)
-        ).fetchone()
-
-        connection.commit()
-        return dict(updated), None
-
-    except Exception:
-        connection.rollback()
-        raise
-
-    finally:
-        connection.close()
-
-
-def create_rollback_operation(target_deployment_id, render_deploy_id):
-    connection = get_connection()
-
-    try:
-        connection.execute("BEGIN")
-
-        deployment = connection.execute(
-            "SELECT * FROM deployments WHERE id = ?",
-            (target_deployment_id,)
-        ).fetchone()
-
-        if deployment is None:
-            connection.rollback()
-            return None, "Deployment not found"
-
-        if deployment["status"] != "success":
-            connection.rollback()
-            return None, "Only successful deployments can be rolled back"
-
-        cursor = connection.execute("""
-            INSERT INTO rollback_operations (
-                target_deployment_id, render_deploy_id, status
-            )
-            VALUES (?, ?, 'pending')
-            RETURNING id
-        """, (target_deployment_id, render_deploy_id))
-
-        rollback_id = cursor.fetchone()["id"]
-
-        connection.commit()
-        return rollback_id, None
-
-    except Exception:
-        connection.rollback()
-        raise
-
-    finally:
-        connection.close()
-
-
-def get_rollback_operation(rollback_id):
-    connection = get_connection()
-
-    try:
-        row = connection.execute(
-            "SELECT * FROM rollback_operations WHERE id = ?",
-            (rollback_id,)
-        ).fetchone()
-
-        return dict(row) if row else None
-
-    finally:
-        connection.close()
-
-
-def finish_rollback_operation(rollback_id, status):
-    if status not in ("success", "failed"):
-        raise ValueError("Rollback status must be success or failed")
-
-    connection = get_connection()
-
-    try:
-        connection.execute("BEGIN")
-
-        operation = connection.execute(
-            "SELECT * FROM rollback_operations WHERE id = ?",
-            (rollback_id,)
-        ).fetchone()
-
-        if operation is None:
-            connection.rollback()
-            return None, "Rollback operation not found"
-
-        if operation["status"] != "pending":
-            connection.rollback()
-            return dict(operation), None
-
-        if status == "success":
-            connection.execute(
-                "UPDATE deployments SET is_active = 0"
-            )
-
-            connection.execute(
-                "UPDATE deployments SET is_active = 1 WHERE id = ?",
-                (operation["target_deployment_id"],)
-            )
-
-        connection.execute("""
-            UPDATE rollback_operations
-            SET status = ?, completed_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (status, rollback_id))
-
-        updated = connection.execute(
-            "SELECT * FROM rollback_operations WHERE id = ?",
-            (rollback_id,)
         ).fetchone()
 
         connection.commit()

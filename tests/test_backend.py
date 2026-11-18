@@ -471,8 +471,20 @@ def test_webhook_start_event(client, monkeypatch):
 
 
 def test_webhook_completion_event(client, monkeypatch):
+    from backend import app as backend_app
+
     secret = "test-secret"
     monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+
+    monkeypatch.setattr(
+        backend_app,
+        "find_render_deployment_by_commit",
+        lambda commit_sha: {
+            "id": "dep-render-test-789",
+            "status": "live",
+            "commit": {"id": commit_sha}
+        }
+    )
 
     deployment = database.create_deployment(
         version="ci-789",
@@ -499,6 +511,10 @@ def test_webhook_completion_event(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json["status"] == "success"
+    assert response.json["render_deploy_id"] == "dep-render-test-789"
+
+    saved = database.get_deployment_by_id(deployment["id"])
+    assert saved["render_deploy_id"] == "dep-render-test-789"
 
 
 def test_webhook_rejects_wrong_run_id(client, monkeypatch):
@@ -528,3 +544,181 @@ def test_webhook_rejects_wrong_run_id(client, monkeypatch):
     )
 
     assert response.status_code == 404
+
+
+def test_create_deployment_saves_render_deploy_id(client):
+    deployment = database.create_deployment(
+        version="ci-render-1",
+        status="pending",
+        commit_sha="commit-render-1",
+        run_id="run-render-1",
+        render_deploy_id="dep-render-123"
+    )
+
+    assert deployment["render_deploy_id"] == "dep-render-123"
+
+
+def test_update_deployment_status_saves_render_deploy_id(client):
+    deployment = database.create_deployment(
+        version="ci-render-2",
+        status="pending",
+        run_id="run-render-2"
+    )
+
+    updated = database.update_deployment_status(
+        deployment["id"],
+        "success",
+        render_deploy_id="dep-render-456"
+    )
+
+    assert updated["status"] == "success"
+    assert updated["render_deploy_id"] == "dep-render-456"
+
+
+def test_update_deployment_status_preserves_existing_render_id(client):
+    deployment = database.create_deployment(
+        version="ci-render-3",
+        status="pending",
+        run_id="run-render-3",
+        render_deploy_id="dep-render-789"
+    )
+
+    updated = database.update_deployment_status(
+        deployment["id"],
+        "success"
+    )
+
+    assert updated["render_deploy_id"] == "dep-render-789"
+
+
+def test_find_render_deployment_by_commit(monkeypatch):
+    from backend import app as backend_app
+
+    render_deployments = [
+        {
+            "id": "dep-old",
+            "status": "deactivated",
+            "commit": {"id": "old-commit"}
+        },
+        {
+            "id": "dep-current",
+            "status": "live",
+            "commit": {"id": "current-commit"}
+        }
+    ]
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: render_deployments
+    )
+
+    result = backend_app.find_render_deployment_by_commit("current-commit")
+
+    assert result["id"] == "dep-current"
+    assert result["status"] == "live"
+
+
+def test_find_render_deployment_by_commit_not_found(monkeypatch):
+    from backend import app as backend_app
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: []
+    )
+
+    assert backend_app.find_render_deployment_by_commit("unknown-commit") is None
+
+
+def test_webhook_keeps_deployment_pending_when_render_is_not_live(client, monkeypatch):
+    from backend import app as backend_app
+
+    secret = "test-secret"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+
+    monkeypatch.setattr(
+        backend_app,
+        "find_render_deployment_by_commit",
+        lambda commit_sha: {
+            "id": "dep-render-pending",
+            "status": "build_in_progress",
+            "commit": {"id": commit_sha}
+        }
+    )
+
+    deployment = database.create_deployment(
+        version="ci-pending",
+        status="pending",
+        commit_sha="test-commit-pending",
+        run_id="test-run-pending"
+    )
+
+    payload = __import__("json").dumps({
+        "event": "completed",
+        "run_id": "test-run-pending",
+        "deployment_id": deployment["id"],
+        "status": "success"
+    }, separators=(",", ":")).encode()
+
+    signature = make_webhook_signature(payload, secret)
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": signature},
+        content_type="application/json"
+    )
+
+    saved = database.get_deployment_by_id(deployment["id"])
+
+    assert response.status_code == 202
+    assert response.json["status"] == "pending"
+    assert saved["status"] == "pending"
+    assert saved["render_deploy_id"] is None
+
+
+def test_webhook_keeps_deployment_pending_when_render_api_fails(client, monkeypatch):
+    from backend import app as backend_app
+
+    secret = "test-secret"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+
+    def raise_render_error(commit_sha):
+        raise backend_app.RenderAPIError("Render API unavailable")
+
+    monkeypatch.setattr(
+        backend_app,
+        "find_render_deployment_by_commit",
+        raise_render_error
+    )
+
+    deployment = database.create_deployment(
+        version="ci-render-error",
+        status="pending",
+        commit_sha="test-commit-render-error",
+        run_id="test-run-render-error"
+    )
+
+    payload = __import__("json").dumps({
+        "event": "completed",
+        "run_id": "test-run-render-error",
+        "deployment_id": deployment["id"],
+        "status": "success"
+    }, separators=(",", ":")).encode()
+
+    signature = make_webhook_signature(payload, secret)
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": signature},
+        content_type="application/json"
+    )
+
+    saved = database.get_deployment_by_id(deployment["id"])
+
+    assert response.status_code == 502
+    assert response.json["status"] == "pending"
+    assert saved["status"] == "pending"
+    assert saved["render_deploy_id"] is None

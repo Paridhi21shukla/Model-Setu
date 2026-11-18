@@ -61,6 +61,19 @@ def verify_webhook_signature(payload, signature):
     return hmac.compare_digest(expected_signature, signature)
 
 
+def find_render_deployment_by_commit(commit_sha):
+    """Find the newest Render deployment matching a Git commit SHA."""
+    if not isinstance(commit_sha, str) or not commit_sha.strip():
+        return None
+
+    for deployment in list_service_deploys():
+        commit = deployment.get("commit") or {}
+
+        if commit.get("id") == commit_sha:
+            return deployment
+
+    return None
+
 
 PROJECT_NAME = "Model-Setu"
 APP_VERSION = "0.1.0"
@@ -507,16 +520,62 @@ def deployment_webhook():
         if deployment is None or deployment.get("run_id") != run_id:
             return jsonify({"error": "Deployment record not found for this run"}), 404
 
+        if status == "failed":
+            try:
+                updated = update_deployment_status(deployment_id, "failed")
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 409
+
+            return jsonify({
+                "message": "CI pipeline failed",
+                "deployment_id": updated["id"],
+                "run_id": run_id,
+                "status": updated["status"]
+            }), 200
+
+        commit_sha = deployment.get("commit_sha")
+
+        if not commit_sha:
+            return jsonify({"error": "Deployment commit SHA is missing"}), 400
+
         try:
-            updated = update_deployment_status(deployment_id, status)
+            render_deployment = find_render_deployment_by_commit(commit_sha)
+        except RenderAPIError as exc:
+            return jsonify({
+                "error": "Unable to verify Render deployment",
+                "details": str(exc),
+                "status": "pending"
+            }), 502
+
+        if not render_deployment or render_deployment.get("status") != "live":
+            render_status = (
+                render_deployment.get("status")
+                if render_deployment else "not_found"
+            )
+
+            return jsonify({
+                "message": "Waiting for Render deployment to become live",
+                "deployment_id": deployment_id,
+                "run_id": run_id,
+                "status": "pending",
+                "render_status": render_status
+            }), 202
+
+        try:
+            updated = update_deployment_status(
+                deployment_id,
+                "success",
+                render_deploy_id=render_deployment.get("id")
+            )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
 
         return jsonify({
-            "message": "Deployment tracking completed",
+            "message": "Render deployment is live; tracking completed",
             "deployment_id": updated["id"],
             "run_id": run_id,
-            "status": updated["status"]
+            "status": updated["status"],
+            "render_deploy_id": updated.get("render_deploy_id")
         }), 200
 
     return jsonify({"error": "Unsupported webhook event"}), 400
