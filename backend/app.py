@@ -236,33 +236,59 @@ def rollback(deployment_id):
             "error": "Only successful deployments can be rolled back"
         }), 400
 
-    commit_sha = deployment.get("commit_sha")
-
-    if not commit_sha:
-        return jsonify({
-            "error": "Deployment does not have a commit SHA"
-        }), 400
-
     try:
-        render_deploys = list_service_deploys()
+        stored_render_deploy_id = deployment.get("render_deploy_id")
 
-        matching_deploys = []
+        if stored_render_deploy_id:
+            render_response = get_service_deploy(
+                stored_render_deploy_id
+            )
+            target_render_deploy = render_response.get(
+                "deploy", render_response
+            )
 
-        for item in render_deploys:
-            render_deploy = item.get("deploy", item)
-            commit = render_deploy.get("commit") or {}
-            render_commit_sha = commit.get("id")
+            if target_render_deploy.get("id") != stored_render_deploy_id:
+                return jsonify({
+                    "error": "Render deployment ID verification failed"
+                }), 502
 
-            if render_commit_sha == commit_sha:
-                if render_deploy.get("status") in ("live", "deactivated"):
-                    matching_deploys.append(render_deploy)
+            if target_render_deploy.get("status") not in (
+                "live", "deactivated"
+            ):
+                return jsonify({
+                    "error": "Stored Render deployment is not eligible for rollback"
+                }), 409
 
-        if not matching_deploys:
-            return jsonify({
-                "error": "No matching successful Render deployment found"
-            }), 404
+        else:
+            commit_sha = deployment.get("commit_sha")
 
-        target_render_deploy = matching_deploys[0]
+            if not commit_sha:
+                return jsonify({
+                    "error": "Deployment does not have a commit SHA or Render deployment ID"
+                }), 400
+
+            render_deploys = list_service_deploys()
+
+            matching_deploys = [
+                item.get("deploy", item)
+                for item in render_deploys
+                if (item.get("deploy", item).get("commit") or {}).get("id")
+                == commit_sha
+                and item.get("deploy", item).get("status")
+                in ("live", "deactivated")
+            ]
+
+            if not matching_deploys:
+                return jsonify({
+                    "error": "No matching successful Render deployment found"
+                }), 404
+
+            if len(matching_deploys) > 1:
+                return jsonify({
+                    "error": "Multiple Render deployments match this commit; rollback target is ambiguous"
+                }), 409
+
+            target_render_deploy = matching_deploys[0]
 
         if target_render_deploy.get("status") == "live":
             return jsonify({

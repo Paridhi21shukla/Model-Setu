@@ -722,3 +722,115 @@ def test_webhook_keeps_deployment_pending_when_render_api_fails(client, monkeypa
     assert response.json["status"] == "pending"
     assert saved["status"] == "pending"
     assert saved["render_deploy_id"] is None
+
+
+# -------------------------
+# ROLLBACK SAFETY TESTS
+# -------------------------
+
+def test_rollback_prefers_stored_render_deploy_id(client, monkeypatch):
+    from backend import app as backend_app
+
+    deployment = database.create_deployment(
+        "1.0.0",
+        "success",
+        commit_sha="old-commit",
+        render_deploy_id="render-old-deploy"
+    )
+
+    verified_ids = []
+    rollback_ids = []
+
+    def mock_get_service_deploy(deploy_id):
+        verified_ids.append(deploy_id)
+        return {"id": deploy_id, "status": "deactivated"}
+
+    def mock_rollback(deploy_id):
+        rollback_ids.append(deploy_id)
+        return {"id": "render-rollback-new"}
+
+    monkeypatch.setattr(
+        backend_app, "get_service_deploy", mock_get_service_deploy
+    )
+    monkeypatch.setattr(
+        backend_app, "rollback_render_deploy", mock_rollback
+    )
+    monkeypatch.setattr(
+        backend_app, "list_service_deploys",
+        lambda: pytest.fail("Commit lookup should not be used")
+    )
+
+    response = client.post(f"/rollback/{deployment['id']}")
+
+    assert response.status_code == 202
+    assert verified_ids == ["render-old-deploy"]
+    assert rollback_ids == ["render-old-deploy"]
+
+
+def test_rollback_rejects_mismatched_stored_render_id(client, monkeypatch):
+    from backend import app as backend_app
+
+    deployment = database.create_deployment(
+        "1.0.0",
+        "success",
+        commit_sha="old-commit",
+        render_deploy_id="render-expected"
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda deploy_id: {
+            "id": "render-different",
+            "status": "deactivated"
+        }
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: pytest.fail("Rollback must not be triggered")
+    )
+
+    response = client.post(f"/rollback/{deployment['id']}")
+
+    assert response.status_code == 502
+    assert response.json["error"] == "Render deployment ID verification failed"
+
+
+def test_rollback_rejects_ambiguous_commit_matches(client, monkeypatch):
+    from backend import app as backend_app
+
+    deployment = database.create_deployment(
+        "1.0.0",
+        "success",
+        commit_sha="old-commit"
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [
+            {
+                "id": "render-old-1",
+                "status": "deactivated",
+                "commit": {"id": "old-commit"}
+            },
+            {
+                "id": "render-old-2",
+                "status": "deactivated",
+                "commit": {"id": "old-commit"}
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: pytest.fail("Ambiguous rollback must not be triggered")
+    )
+
+    response = client.post(f"/rollback/{deployment['id']}")
+
+    assert response.status_code == 409
+    assert "ambiguous" in response.json["error"].lower()
