@@ -253,6 +253,16 @@ def test_rollback_becomes_active_when_render_is_live(client, monkeypatch):
     assert response.status_code == 200
     assert response.json["rollback"]["status"] == "success"
 
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda deploy_id: pytest.fail("Completed rollback must not call Render again")
+    )
+
+    repeated = client.get(f"/rollback/status/{rollback_id}")
+    assert repeated.status_code == 200
+    assert repeated.json["rollback"]["status"] == "success"
+
     active = client.get("/active-deployment")
     assert active.json["active_deployment"]["id"] == first_id
 
@@ -834,3 +844,141 @@ def test_rollback_rejects_ambiguous_commit_matches(client, monkeypatch):
 
     assert response.status_code == 409
     assert "ambiguous" in response.json["error"].lower()
+
+
+def test_rollback_status_not_found(client):
+    response = client.get("/rollback/status/999999")
+
+    assert response.status_code == 404
+    assert response.json["error"] == "Rollback operation not found"
+
+
+def test_rollback_status_render_api_error_keeps_pending(client, monkeypatch):
+    from backend import app as backend_app
+
+    first = client.post(
+        "/deployments",
+        json={
+            "version": "1.0.0",
+            "status": "success",
+            "commit_sha": "old-commit"
+        }
+    )
+
+    client.post(
+        "/deployments",
+        json={
+            "version": "2.0.0",
+            "status": "success",
+            "commit_sha": "new-commit"
+        }
+    )
+
+    first_id = first.json["deployment"]["id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [{
+            "id": "render-old-deploy",
+            "status": "deactivated",
+            "commit": {"id": "old-commit"}
+        }]
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: {"id": "render-rollback-123"}
+    )
+
+    started = client.post(f"/rollback/{first_id}")
+    rollback_id = started.json["rollback_id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda deploy_id: (_ for _ in ()).throw(
+            backend_app.RenderAPIError("Temporary Render API failure")
+        )
+    )
+
+    response = client.get(f"/rollback/status/{rollback_id}")
+
+    assert response.status_code == 502
+    assert response.json["error"] == "Temporary Render API failure"
+    assert database.get_rollback_operation(rollback_id)["status"] == "pending"
+
+    retry_response = client.get(f"/rollback/status/{rollback_id}")
+
+    assert retry_response.status_code == 502
+
+
+@pytest.mark.parametrize(
+    "render_status",
+    ["update_failed", "canceled", "pre_deploy_failed"]
+)
+def test_rollback_status_handles_render_failure_variants(
+    client, monkeypatch, render_status
+):
+    from backend import app as backend_app
+
+    first = client.post(
+        "/deployments",
+        json={
+            "version": "1.0.0",
+            "status": "success",
+            "commit_sha": "old-commit"
+        }
+    )
+
+    second = client.post(
+        "/deployments",
+        json={
+            "version": "2.0.0",
+            "status": "success",
+            "commit_sha": "new-commit"
+        }
+    )
+
+    first_id = first.json["deployment"]["id"]
+    second_id = second.json["deployment"]["id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [{
+            "id": "render-old-deploy",
+            "status": "deactivated",
+            "commit": {"id": "old-commit"}
+        }]
+    )
+
+    monkeypatch.setattr(
+        backend_app,
+        "rollback_render_deploy",
+        lambda deploy_id: {"id": "render-rollback-123"}
+    )
+
+    started = client.post(f"/rollback/{first_id}")
+    assert started.status_code == 202
+
+    rollback_id = started.json["rollback_id"]
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda deploy_id: {
+            "id": deploy_id,
+            "status": render_status
+        }
+    )
+
+    response = client.get(f"/rollback/status/{rollback_id}")
+
+    assert response.status_code == 200
+    assert response.json["rollback"]["status"] == "failed"
+    assert response.json["render_status"] == render_status
+
+    active = client.get("/active-deployment")
+    assert active.json["active_deployment"]["id"] == second_id
