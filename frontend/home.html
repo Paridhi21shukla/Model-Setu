@@ -1,66 +1,236 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#031426" />
+  <meta name="description" content="Model-Setu is a cloud-based ML model deployment platform with automated CI/CD, Docker, GitHub Actions and cloud monitoring." />
   <title>Model-Setu | Cloud-Based ML Deployment Platform</title>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="home.css" />
-  <script defer src="home.js"></script>
+
+  <link rel="stylesheet" href="./home.css" />
+  <script defer src="./home.js"></script>
 </head>
+
 <body>
-  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
   <header class="topbar">
-    <a class="brand" href="#home" aria-label="Model-Setu home"><span class="brand-mark"><svg viewBox="0 0 42 42"><path d="M8 24c-4-1-5-7-1-10 2-2 5-2 7-1 2-7 12-9 17-4 2 2 3 4 3 7 5 0 8 4 7 8-1 4-4 6-8 6H11c-4 0-7-2-7-5 0-1 1-1 4-1Z"/><path d="m15 17-5 5 5 4m12-9 5 5-5 4m-4-12-4 16"/></svg></span><span>Model-<i>Setu</i></span></a>
+    <a class="brand" href="./home.html" aria-label="Model-Setu home">
+      <span class="brand-mark">
+        <svg viewBox="0 0 42 42">
+          <path d="M8 24c-4-1-5-7-1-10 2-2 5-2 7-1 2-7 12-9 17-4 2 2 3 4 3 7 5 0 8 4 7 8-1 4-4 6-8 6H11c-4 0-7-2-7-5 0-1 1-1 4-1Z"/>
+          <path d="m15 17-5 5 5 4m12-9 5 5-5 4m-4-12-4 16"/>
+        </svg>
+      </span>
+      <span>Model-<i>Setu</i></span>
+    </a>
+
     <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation">☰</button>
-    <nav class="nav" id="mainNav"><a class="active" href="#home">Home</a><a href="#features">Features <span class="chevron">⌄</span></a><a href="#architecture">Architecture</a><a href="index.html">Dashboard</a><a href="#docs">Docs</a></nav>
-    <div class="nav-actions"><a class="github-top" href="https://github.com/Paridhi21shukla/Model-Setu" target="_blank" rel="noreferrer" aria-label="GitHub repository"><svg viewBox="0 0 24 24"><path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.1c-3.1.68-3.75-1.31-3.75-1.31-.5-1.28-1.23-1.62-1.23-1.62-1.01-.69.08-.68.08-.68 1.12.08 1.71 1.15 1.71 1.15.99 1.7 2.6 1.21 3.23.93.1-.72.39-1.21.7-1.49-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.14a10.6 10.6 0 0 1 5.55 0c2.12-1.44 3.05-1.14 3.05-1.14.61 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.29-2.61 5.23-5.1 5.51.4.35.75 1.03.75 2.08v3.05c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"/></svg></a><a class="get-started" href="index.html">Open Dashboard <span>↗</span></a></div>
+
+    <nav class="nav" id="mainNav">
+      <a class="active" href="./home.html">Home</a>
+      <a href="#features">Features <span class="chevron">⌄</span></a>
+      <a href="#architecture">Architecture</a>
+      <a href="./index.html">Dashboard</a>
+      <a href="#docs">Docs</a>
+    </nav>
+
+    <div class="nav-actions">
+      <a class="github-top" href="https://github.com/Paridhi21shukla/Model-Setu" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.1c-3.1.68-3.75-1.31-3.75-1.31-.5-1.28-1.23-1.62-1.23-1.62-1.01-.69.08-.68.08-.68 1.12.08 1.71 1.15 1.71 1.15.99 1.7 2.6 1.21 3.23.93.1-.72.39-1.21.7-1.49-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.14a10.6 10.6 0 0 1 5.55 0c2.12-1.44 3.05-1.14 3.05-1.14.61 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.29-2.61 5.23-5.1 5.51.4.35.75 1.03.75 2.08v3.05c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z"/>
+        </svg>
+      </a>
+      <a class="get-started" href="./index.html">Open Dashboard <span>↗</span></a>
+    </div>
   </header>
 
   <main id="home">
     <section class="hero">
       <div class="hero-copy">
         <div class="eyebrow"><span class="bolt">ϟ</span> CI/CD · CLOUD · ML DEPLOYMENT</div>
+
         <h1>Model-<span>Setu</span></h1>
         <h2>A Cloud-Based ML Model<br>Deployment Platform</h2>
-        <p class="hero-description">Build, test, containerize and deploy your ML models to the cloud with an automated and reliable CI/CD pipeline.</p>
-        <div class="hero-buttons"><a class="btn btn-primary" href="index.html">Try the Demo <span>→</span></a><a class="btn btn-outline" href="https://github.com/Paridhi21shukla/Model-Setu" target="_blank" rel="noreferrer"><span class="github-mini">●</span> View on GitHub</a></div>
-        <div class="hero-proof"><span class="proof-icons"><b>G</b><b>✓</b><b>R</b></span><span><strong>Automated deployment workflow</strong><small>GitHub Actions · Docker · Render</small></span></div>
+
+        <p class="hero-description">
+          Build, test, containerize and deploy your ML models to the cloud
+          with an automated and reliable CI/CD pipeline.
+        </p>
+
+        <div class="hero-buttons">
+          <a class="btn btn-primary" href="./index.html">
+            Try the Demo <span>→</span>
+          </a>
+          <a class="btn btn-outline" href="https://github.com/Paridhi21shukla/Model-Setu" target="_blank" rel="noopener noreferrer">
+            <span class="github-mini">●</span> View on GitHub
+          </a>
+        </div>
+
+        <div class="hero-proof">
+          <span class="proof-icons"><b>G</b><b>✓</b><b>R</b></span>
+          <span>
+            <strong>Automated deployment workflow</strong>
+            <small>GitHub Actions · Docker · Render</small>
+          </span>
+        </div>
       </div>
 
-      <div class="scene" aria-label="Interactive 3D-style Model-Setu deployment environment">
-        <div class="scene-grid"></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
-        <svg class="connection-lines" viewBox="0 0 900 650" preserveAspectRatio="none" aria-hidden="true"><path d="M110 245 C170 40 330 55 430 125 S650 40 790 205"/><path d="M100 410 C190 560 330 555 450 470 S690 560 810 400"/><path d="M180 240 C280 130 350 135 450 180 S650 180 730 270"/></svg>
-        <div class="cloud cloud-main"><div class="cloud-shape"></div><span class="upload-arrow">↑</span></div>
-        <div class="server server-left"><i></i><i></i><i></i><i></i><i></i></div><div class="server server-right"><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="island"><div class="island-top"><div class="island-grass grass-a"></div><div class="island-grass grass-b"></div><div class="island-rock"></div><div class="waterfall waterfall-a"></div><div class="waterfall waterfall-b"></div><div class="platform-ring"></div>
-          <div class="laptop"><div class="laptop-screen"><div class="screen-top"><b>◈ Model-Setu</b><span>● ● ●</span></div><div class="screen-layout"><aside><b class="screen-logo">⌘</b><span class="selected">▦ Overview</span><span>⇧ Deployments</span><span>⌁ CI/CD Pipeline</span><span>◉ Monitoring</span></aside><div class="screen-main"><div class="screen-heading">Deployment Overview <em>LIVE UI</em></div><div class="screen-stats"><div><small>Deployments</small><strong id="miniDeployments">12</strong><small class="green">↑ pipeline runs</small></div><div><small>Service health</small><strong>● Online</strong><small class="green">Backend connected separately</small></div></div><div class="screen-chart"><div class="chart-label">Request activity <small>Illustrative preview</small></div><svg viewBox="0 0 360 90" preserveAspectRatio="none"><defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#00eaff" stop-opacity=".38"/><stop offset="1" stop-color="#00eaff" stop-opacity="0"/></linearGradient></defs><path class="chart-area" d="M0 70 C35 68 42 30 75 43 S120 58 145 32 S190 42 220 24 S270 35 300 15 S335 25 360 4 L360 90 L0 90Z"/><path class="chart-line" d="M0 70 C35 68 42 30 75 43 S120 58 145 32 S190 42 220 24 S270 35 300 15 S335 25 360 4"/></svg></div></div></div></div><div class="laptop-base"></div></div>
-          <div class="workflow-band"><span><b>⌘</b> Build</span><i>››</i><span><b>✓</b> Test</span><i>››</i><span><b>➤</b> Deploy</span><i>››</i><span><b>▥</b> Monitor</span></div>
+      <div class="scene" aria-label="Interactive Model-Setu deployment environment">
+        <div class="scene-grid"></div>
+        <div class="orbit orbit-one"></div>
+        <div class="orbit orbit-two"></div>
+
+        <svg class="connection-lines" viewBox="0 0 900 650" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M110 245 C170 40 330 55 430 125 S650 40 790 205"/>
+          <path d="M100 410 C190 560 330 555 450 470 S690 560 810 400"/>
+          <path d="M180 240 C280 130 350 135 450 180 S650 180 730 270"/>
+        </svg>
+
+        <div class="cloud cloud-main">
+          <div class="cloud-shape"></div>
+          <span class="upload-arrow">↑</span>
         </div>
+
+        <div class="server server-left"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="server server-right"><i></i><i></i><i></i><i></i><i></i></div>
+
+        <div class="island">
+          <div class="island-top">
+            <div class="island-grass grass-a"></div>
+            <div class="island-grass grass-b"></div>
+            <div class="island-rock"></div>
+            <div class="waterfall waterfall-a"></div>
+            <div class="waterfall waterfall-b"></div>
+            <div class="platform-ring"></div>
+
+            <div class="laptop">
+              <div class="laptop-screen">
+                <div class="screen-top">
+                  <b>◈ Model-Setu</b><span>● ● ●</span>
+                </div>
+
+                <div class="screen-layout">
+                  <aside>
+                    <b class="screen-logo">⌘</b>
+                    <span class="selected">▦ Overview</span>
+                    <span>⇧ Deployments</span>
+                    <span>⌁ CI/CD Pipeline</span>
+                    <span>◉ Monitoring</span>
+                  </aside>
+
+                  <div class="screen-main">
+                    <div class="screen-heading">Deployment Overview <em>LIVE UI</em></div>
+
+                    <div class="screen-stats">
+                      <div>
+                        <small>Deployments</small>
+                        <strong id="miniDeployments">13</strong>
+                        <small class="green">↑ pipeline runs</small>
+                      </div>
+                      <div>
+                        <small>Service health</small>
+                        <strong>● Online</strong>
+                        <small class="green">Backend connected</small>
+                      </div>
+                    </div>
+
+                    <div class="screen-chart">
+                      <div class="chart-label">Request activity <small>Illustrative preview</small></div>
+                      <svg viewBox="0 0 360 90" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
+                            <stop offset="0" stop-color="#00eaff" stop-opacity=".38"/>
+                            <stop offset="1" stop-color="#00eaff" stop-opacity="0"/>
+                          </linearGradient>
+                        </defs>
+                        <path class="chart-area" d="M0 70 C35 68 42 30 75 43 S120 58 145 32 S190 42 220 24 S270 35 300 15 S335 25 360 4 L360 90 L0 90Z"/>
+                        <path class="chart-line" d="M0 70 C35 68 42 30 75 43 S120 58 145 32 S190 42 220 24 S270 35 300 15 S335 25 360 4"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="laptop-base"></div>
+            </div>
+
+            <div class="workflow-band">
+              <span><b>⌘</b> Build</span><i>››</i>
+              <span><b>✓</b> Test</span><i>››</i>
+              <span><b>➤</b> Deploy</span><i>››</i>
+              <span><b>▥</b> Monitor</span>
+            </div>
+          </div>
+        </div>
+
         <button class="tech-card github-card" data-tech="github"><span class="tech-icon github-symbol">●</span><strong>GitHub</strong><small>Code Push</small></button>
         <button class="tech-card actions-card" data-tech="actions"><span class="tech-icon">⌘</span><strong>GitHub Actions</strong><small>CI / CD</small></button>
         <button class="tech-card docker-card" data-tech="docker"><span class="tech-icon docker-symbol">▥</span><strong>Docker</strong><small>Build &amp; Package</small></button>
         <button class="tech-card render-card" data-tech="render"><span class="tech-icon">☁</span><strong>Render</strong><small>Deploy</small></button>
         <button class="tech-card prometheus-card" data-tech="prometheus"><span class="tech-icon flame">♨</span><strong>Prometheus</strong><small>Metrics</small></button>
         <button class="tech-card grafana-card" data-tech="grafana"><span class="tech-icon gear">◉</span><strong>Grafana</strong><small>Visualization</small></button>
-        <div class="scene-caption"><span class="pulse-dot"></span> DEPLOYMENT PIPELINE <b>OPERATIONAL CONCEPT</b></div>
+
+        <div class="scene-caption">
+          <span class="pulse-dot"></span> DEPLOYMENT PIPELINE <b>OPERATIONAL CONCEPT</b>
+        </div>
       </div>
     </section>
 
     <section class="feature-strip" id="features">
-      <button class="feature-item" data-feature="cicd"><span class="feature-symbol">▱</span><span><strong>Automated CI/CD</strong><small>From code push to live deployment</small></span></button>
-      <button class="feature-item" data-feature="management"><span class="feature-symbol">⬡</span><span><strong>Model Management</strong><small>Version, deploy and rollback</small></span></button>
-      <button class="feature-item" data-feature="monitoring"><span class="feature-symbol">ϟ</span><span><strong>Monitoring &amp; Observability</strong><small>Metrics with Prometheus &amp; Grafana</small></span></button>
-      <button class="feature-item" data-feature="rollback"><span class="feature-symbol">⟳</span><span><strong>Rollback</strong><small>Return to a stable version</small></span></button>
+      <button class="feature-item" data-feature="cicd">
+        <span class="feature-symbol">▱</span>
+        <span><strong>Automated CI/CD</strong><small>From code push to live deployment</small></span>
+      </button>
+      <button class="feature-item" data-feature="management">
+        <span class="feature-symbol">⬡</span>
+        <span><strong>Model Management</strong><small>Version, deploy and rollback</small></span>
+      </button>
+      <button class="feature-item" data-feature="monitoring">
+        <span class="feature-symbol">ϟ</span>
+        <span><strong>Monitoring &amp; Observability</strong><small>Metrics with Prometheus &amp; Grafana</small></span>
+      </button>
+      <button class="feature-item" data-feature="rollback">
+        <span class="feature-symbol">⟳</span>
+        <span><strong>Rollback</strong><small>Return to a stable version</small></span>
+      </button>
     </section>
   </main>
 
-  <section class="details-section" id="architecture"><div class="section-kicker">EXPLORE THE PIPELINE</div><h2>Every stage has a purpose.</h2><p>Choose a technology card in the scene to understand how it fits into Model-Setu.</p><div class="stage-row"><button data-stage="build"><span>01</span><strong>Build</strong><small>Package the service</small></button><button data-stage="test"><span>02</span><strong>Test</strong><small>Validate every change</small></button><button data-stage="deploy"><span>03</span><strong>Deploy</strong><small>Release to the cloud</small></button><button data-stage="monitor"><span>04</span><strong>Monitor</strong><small>Observe service metrics</small></button></div></section>
-  <footer id="docs"><span>© 2026 Model-Setu</span><span>Cloud-based ML model deployment · Built around an automated CI/CD workflow</span><a href="https://github.com/Paridhi21shukla/Model-Setu" target="_blank" rel="noreferrer">Project repository ↗</a></footer>
+  <section class="details-section" id="architecture">
+    <div class="section-kicker">EXPLORE THE PIPELINE</div>
+    <h2>Every stage has a purpose.</h2>
+    <p>Choose a technology card in the scene to understand how it fits into Model-Setu.</p>
 
-  <div class="modal-backdrop" id="infoModal" aria-hidden="true"><section class="info-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><button class="modal-close" id="modalClose" aria-label="Close">×</button><div class="modal-kicker" id="modalKicker">MODEL-SETU COMPONENT</div><div class="modal-icon" id="modalIcon">⌘</div><h2 id="modalTitle">GitHub Actions</h2><p id="modalText"></p><div class="modal-flow" id="modalFlow"></div><a class="modal-link" id="modalLink" href="index.html">Explore dashboard ↗</a></section></div>
+    <div class="stage-row">
+      <button data-stage="build"><span>01</span><strong>Build</strong><small>Package the service</small></button>
+      <button data-stage="test"><span>02</span><strong>Test</strong><small>Validate every change</small></button>
+      <button data-stage="deploy"><span>03</span><strong>Deploy</strong><small>Release to the cloud</small></button>
+      <button data-stage="monitor"><span>04</span><strong>Monitor</strong><small>Observe service metrics</small></button>
+    </div>
+  </section>
+
+  <footer id="docs">
+    <span>© 2026 Model-Setu</span>
+    <span>Cloud-based ML model deployment · Automated CI/CD workflow</span>
+    <a href="https://github.com/Paridhi21shukla/Model-Setu" target="_blank" rel="noopener noreferrer">Project repository ↗</a>
+  </footer>
+
+  <div class="modal-backdrop" id="infoModal" aria-hidden="true">
+    <section class="info-modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <button class="modal-close" id="modalClose" aria-label="Close">×</button>
+      <div class="modal-kicker" id="modalKicker">MODEL-SETU COMPONENT</div>
+      <div class="modal-icon" id="modalIcon">⌘</div>
+      <h2 id="modalTitle">GitHub Actions</h2>
+      <p id="modalText"></p>
+      <div class="modal-flow" id="modalFlow"></div>
+      <a class="modal-link" id="modalLink" href="./index.html">Explore dashboard ↗</a>
+    </section>
+  </div>
 </body>
 </html>
