@@ -32,7 +32,7 @@ jobs:
 
       - name: Start deployment tracking
         id: webhook_start
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         env:
           DEPLOYMENT_WEBHOOK_SECRET: ${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}
           BACKEND_URL: https://model-setu-backend.onrender.com
@@ -107,7 +107,7 @@ jobs:
             ${{ steps.image.outputs.name }}:${{ github.sha }}
 
       - name: Trigger Render Deployment
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
