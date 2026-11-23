@@ -7,6 +7,8 @@ from prometheus_client import (
     CONTENT_TYPE_LATEST
 )
 import time
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 import hmac
 import hashlib
 import os
@@ -61,18 +63,69 @@ def verify_webhook_signature(payload, signature):
     return hmac.compare_digest(expected_signature, signature)
 
 
+def parse_deployment_timestamp(value):
+    """Convert Render ISO timestamps or database GMT timestamps to UTC."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    try:
+        parsed = parsedate_to_datetime(value)
+    except (TypeError, ValueError, OverflowError):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
+
+
 def find_render_deployment_by_commit(commit_sha):
-    """Find the newest Render deployment matching a Git commit SHA."""
+    """Find a Render deployment matching an exact Git commit SHA."""
     if not isinstance(commit_sha, str) or not commit_sha.strip():
         return None
 
     for deployment in list_service_deploys():
         commit = deployment.get("commit") or {}
-
         if commit.get("id") == commit_sha:
             return deployment
 
     return None
+
+
+def find_render_deployment_for_ci(commit_sha, started_at=None):
+    """Find the CI deployment using commit SHA or a bounded deploy-hook window."""
+    # Keep the original one-argument helper for compatibility with existing tests.
+    deployment = find_render_deployment_by_commit(commit_sha)
+    if deployment is not None:
+        return deployment
+
+    start_time = parse_deployment_timestamp(started_at)
+    if start_time is None:
+        return None
+
+    end_time = start_time + timedelta(minutes=10)
+    candidates = []
+
+    for deployment in list_service_deploys():
+        if deployment.get("trigger") != "deploy_hook":
+            continue
+
+        if (deployment.get("commit") or {}).get("id"):
+            continue
+
+        created_at = parse_deployment_timestamp(deployment.get("createdAt"))
+
+        if created_at is not None and start_time <= created_at <= end_time:
+            candidates.append((created_at, deployment))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates[0][1]
 
 
 PROJECT_NAME = "Model-Setu"
@@ -565,7 +618,10 @@ def deployment_webhook():
             return jsonify({"error": "Deployment commit SHA is missing"}), 400
 
         try:
-            render_deployment = find_render_deployment_by_commit(commit_sha)
+            render_deployment = find_render_deployment_for_ci(
+                commit_sha,
+                deployment.get("started_at")
+            )
         except RenderAPIError as exc:
             return jsonify({
                 "error": "Unable to verify Render deployment",
