@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Model-Setu | Prediction Playground</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 32px 18px; min-height: 100vh;
+      font-family: Arial, sans-serif; color: #183044;
+      background: linear-gradient(135deg, #edf7f8, #f5f8fc);
+    }
+    .container {
+      max-width: 850px; margin: 30px auto; padding: 32px;
+      background: white; border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(25,55,75,.09);
+    }
+    .top { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    a { color:#087e8b; text-decoration:none; font-weight:600; }
+    h1 { margin:25px 0 8px; font-size:32px; }
+    .muted { color:#647787; line-height:1.6; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:28px 0; }
+    label { display:block; font-weight:600; font-size:14px; }
+    input {
+      width:100%; margin-top:8px; padding:13px;
+      border:1px solid #d6e0e7; border-radius:9px; font-size:16px;
+    }
+    button {
+      border:0; border-radius:9px; padding:14px 24px;
+      background:#087e8b; color:white; font-size:16px;
+      font-weight:700; cursor:pointer;
+    }
+    button:disabled { opacity:.6; cursor:wait; }
+    #result {
+      display:none; margin-top:25px; padding:22px;
+      border-radius:12px; background:#eef8f6;
+    }
+    #prediction { font-size:27px; font-weight:700; color:#087e65; margin:8px 0; }
+    .error { background:#fff0ef !important; color:#a52c25; }
+    .meta { margin-top:14px; color:#526575; font-size:14px; line-height:1.8; }
+    @media(max-width:600px) {
+      .container { padding:22px; }
+      .grid { grid-template-columns:1fr; }
+      h1 { font-size:26px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <div class="top">
+      <a href="./home.html">← Model-Setu Home</a>
+      <a href="./index.html">Deployment Dashboard ↗</a>
+    </div>
+
+    <h1>ML Prediction Playground</h1>
+    <p class="muted">
+      Test the deployed Iris Random Forest model. Enter four flower measurements
+      to receive a prediction from the live Model-Setu ML service.
+    </p>
+
+    <form id="predictionForm">
+      <div class="grid">
+        <label>Sepal length (cm)
+          <input name="sepalLength" type="number" step="any" min="0" value="5.1" required>
+        </label>
+        <label>Sepal width (cm)
+          <input name="sepalWidth" type="number" step="any" min="0" value="3.5" required>
+        </label>
+        <label>Petal length (cm)
+          <input name="petalLength" type="number" step="any" min="0" value="1.4" required>
+        </label>
+        <label>Petal width (cm)
+          <input name="petalWidth" type="number" step="any" min="0" value="0.2" required>
+        </label>
+      </div>
+      <button id="predictButton" type="submit">Run Prediction →</button>
+    </form>
+
+    <section id="result" aria-live="polite">
+      <div id="resultHeading">Prediction result</div>
+      <div id="prediction"></div>
+      <div id="details" class="meta"></div>
+    </section>
+    <p class="muted" id="serviceStatus">Connecting to the ML service when you run a prediction.</p>
+  </main>
+
+  <script>
+    const form = document.getElementById('predictionForm');
+    const button = document.getElementById('predictButton');
+    const result = document.getElementById('result');
+    const prediction = document.getElementById('prediction');
+    const details = document.getElementById('details');
+    const status = document.getElementById('serviceStatus');
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      button.disabled = true;
+      button.textContent = 'Running prediction...';
+      result.style.display = 'block';
+      result.classList.remove('error');
+      prediction.textContent = '';
+      details.textContent = 'Contacting the deployed ML model...';
+      status.textContent = '';
+
+      const values = new FormData(form);
+      const features = [
+        Number(values.get('sepalLength')),
+        Number(values.get('sepalWidth')),
+        Number(values.get('petalLength')),
+        Number(values.get('petalWidth'))
+      ];
+
+      try {
+        const response = await fetch('/ml-api/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ features })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Prediction request failed');
+
+        document.getElementById('resultHeading').textContent = 'Predicted Iris species';
+        prediction.textContent = data.prediction;
+        details.textContent =
+          `Confidence: ${(data.confidence * 100).toFixed(2)}% | ` +
+          `Model: ${data.model_name} | Version: ${data.model_version} | ` +
+          `Class ID: ${data.class_id}`;
+        status.textContent = 'Prediction successfully returned by the live ML service.';
+      } catch (error) {
+        result.classList.add('error');
+        document.getElementById('resultHeading').textContent = 'Prediction unavailable';
+        prediction.textContent = 'Request failed';
+        details.textContent = error.message;
+        status.textContent = 'Check the ML service or Vercel API rewrite configuration.';
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Run Prediction →';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -5,5 +5,11 @@
       "destination": "/home.html",
       "permanent": false
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/ml-api/:path*",
+      "destination": "https://model-setu.onrender.com/:path*"
+    }
   ]
 }
