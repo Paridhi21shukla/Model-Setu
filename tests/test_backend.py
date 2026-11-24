@@ -1104,3 +1104,263 @@ def test_rollback_status_handles_render_failure_variants(
 
     active = client.get("/active-deployment")
     assert active.json["active_deployment"]["id"] == second_id
+
+
+def test_only_latest_successful_deployment_is_active(client):
+    first = database.create_deployment(
+        version="1.0.0",
+        status="success"
+    )
+
+    second = database.create_deployment(
+        version="2.0.0",
+        status="success"
+    )
+
+    first_record = database.get_deployment_by_id(first["id"])
+    second_record = database.get_deployment_by_id(second["id"])
+    active = database.get_active_deployment()
+
+    assert first_record["is_active"] == 0
+    assert second_record["is_active"] == 1
+    assert active["id"] == second["id"]
+
+    connection = database.get_connection()
+    try:
+        rows = connection.execute(
+            "SELECT COUNT(*) AS count FROM deployments WHERE is_active = 1"
+        ).fetchone()
+        assert rows["count"] == 1
+    finally:
+        connection.close()
+
+
+# -------------------------
+# GITHUB API ROUTE TESTS
+# -------------------------
+
+def test_github_user_success(client, monkeypatch):
+    from backend import app as backend_app
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_authenticated_user",
+        lambda: {"login": "test-user", "name": "Test User"}
+    )
+
+    response = client.get("/github/user")
+
+    assert response.status_code == 200
+    assert response.json["connected"] is True
+    assert response.json["user"]["login"] == "test-user"
+
+
+def test_github_user_error(client, monkeypatch):
+    from backend import app as backend_app
+
+    def raise_error():
+        raise backend_app.GitHubServiceError("GitHub unavailable")
+
+    monkeypatch.setattr(backend_app, "get_authenticated_user", raise_error)
+
+    response = client.get("/github/user")
+
+    assert response.status_code == 502
+    assert response.json["connected"] is False
+    assert response.json["error"] == "GitHub unavailable"
+
+
+def test_github_repositories_success(client, monkeypatch):
+    from backend import app as backend_app
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_user_repositories",
+        lambda: [{"full_name": "test-user/Model-Setu"}]
+    )
+
+    response = client.get("/github/repositories")
+
+    assert response.status_code == 200
+    assert response.json["count"] == 1
+    assert response.json["repositories"][0]["full_name"] == "test-user/Model-Setu"
+
+
+def test_github_repositories_error(client, monkeypatch):
+    from backend import app as backend_app
+
+    def raise_error():
+        raise backend_app.GitHubServiceError("Repository access denied")
+
+    monkeypatch.setattr(backend_app, "get_user_repositories", raise_error)
+
+    response = client.get("/github/repositories")
+
+    assert response.status_code == 502
+    assert response.json["error"] == "Repository access denied"
+
+
+def test_github_branches_success(client, monkeypatch):
+    from backend import app as backend_app
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_repository_branches",
+        lambda owner, repo: [{"name": "main", "protected": True}]
+    )
+
+    response = client.get(
+        "/github/repositories/test-user/Model-Setu/branches"
+    )
+
+    assert response.status_code == 200
+    assert response.json["repository"] == "test-user/Model-Setu"
+    assert response.json["count"] == 1
+    assert response.json["branches"][0]["name"] == "main"
+
+
+def test_github_branches_error(client, monkeypatch):
+    from backend import app as backend_app
+
+    def raise_error(owner, repo):
+        raise backend_app.GitHubServiceError("Branch access denied")
+
+    monkeypatch.setattr(backend_app, "get_repository_branches", raise_error)
+
+    response = client.get(
+        "/github/repositories/test-user/Model-Setu/branches"
+    )
+
+    assert response.status_code == 502
+    assert response.json["error"] == "Branch access denied"
+
+
+def test_github_workflow_dispatch_success(client, monkeypatch):
+    from backend import app as backend_app
+
+    captured = {}
+
+    def mock_dispatch(owner, repo, branch):
+        captured.update(owner=owner, repo=repo, branch=branch)
+        return {"triggered": True, "branch": branch}
+
+    monkeypatch.setattr(
+        backend_app,
+        "trigger_github_workflow",
+        mock_dispatch
+    )
+
+    response = client.post(
+        "/github/workflows/dispatch",
+        json={"owner": "test-user", "repo": "Model-Setu", "branch": "develop"}
+    )
+
+    assert response.status_code == 200
+    assert response.json["triggered"] is True
+    assert captured == {
+        "owner": "test-user",
+        "repo": "Model-Setu",
+        "branch": "develop"
+    }
+
+
+def test_github_workflow_dispatch_error(client, monkeypatch):
+    from backend import app as backend_app
+
+    def raise_error(owner, repo, branch):
+        raise backend_app.GitHubServiceError("Workflow dispatch denied")
+
+    monkeypatch.setattr(
+        backend_app,
+        "trigger_github_workflow",
+        raise_error
+    )
+
+    response = client.post(
+        "/github/workflows/dispatch",
+        json={"owner": "test-user", "repo": "Model-Setu", "branch": "main"}
+    )
+
+    assert response.status_code == 502
+    assert response.json["error"] == "Workflow dispatch denied"
+
+
+def test_github_workflow_runs_success(client, monkeypatch):
+    from backend import app as backend_app
+
+    captured = {}
+
+    def mock_runs(owner, repo, branch):
+        captured.update(owner=owner, repo=repo, branch=branch)
+        return [{"id": 123, "status": "completed"}]
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_github_workflow_runs",
+        mock_runs
+    )
+
+    response = client.get(
+        "/github/workflows/runs"
+        "?owner=test-user&repo=Model-Setu&branch=main"
+    )
+
+    assert response.status_code == 200
+    assert response.json["count"] == 1
+    assert response.json["runs"][0]["id"] == 123
+    assert captured == {
+        "owner": "test-user",
+        "repo": "Model-Setu",
+        "branch": "main"
+    }
+
+
+def test_github_workflow_runs_error(client, monkeypatch):
+    from backend import app as backend_app
+
+    def raise_error(owner, repo, branch):
+        raise backend_app.GitHubServiceError("Workflow history unavailable")
+
+    monkeypatch.setattr(
+        backend_app,
+        "get_github_workflow_runs",
+        raise_error
+    )
+
+    response = client.get("/github/workflows/runs")
+
+    assert response.status_code == 502
+    assert response.json["error"] == "Workflow history unavailable"
+
+
+def test_failed_successful_deployment_preserves_previous_active(client):
+    import sqlite3
+
+    first = client.post(
+        "/deployments",
+        json={"version": "1.0.0", "status": "success"}
+    )
+    assert first.status_code == 201
+
+    connection = database.get_connection()
+    try:
+        connection.execute("""
+            CREATE TRIGGER reject_test_deployment
+            BEFORE INSERT ON deployments
+            WHEN NEW.version = 'force-failure'
+            BEGIN
+                SELECT RAISE(ABORT, 'Intentional test failure');
+            END
+        """)
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(sqlite3.IntegrityError):
+        database.create_deployment("force-failure", "success")
+
+    active = database.get_active_deployment()
+
+    assert active is not None
+    assert active["version"] == "1.0.0"
+    assert active["is_active"] == 1
