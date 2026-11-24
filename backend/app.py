@@ -681,11 +681,32 @@ def deployment_webhook():
         if not commit_sha:
             return jsonify({"error": "Deployment commit SHA is missing"}), 400
 
+        render_deploy_id = data.get("render_deploy_id")
+        if render_deploy_id is not None and (
+            not isinstance(render_deploy_id, str) or not render_deploy_id.strip()
+        ):
+            return jsonify({"error": "render_deploy_id must be a non-empty string"}), 400
+
         try:
-            render_deployment = find_render_deployment_for_ci(
-                commit_sha,
-                deployment.get("started_at")
-            )
+            if render_deploy_id:
+                render_response = get_service_deploy(render_deploy_id)
+                render_deployment = (
+                    render_response.get("deploy", render_response)
+                    if isinstance(render_response, dict) else None
+                )
+                if (
+                    not isinstance(render_deployment, dict)
+                    or render_deployment.get("id") != render_deploy_id
+                ):
+                    return jsonify({
+                        "error": "Render deployment ID could not be verified",
+                        "status": "pending"
+                    }), 502
+            else:
+                render_deployment = find_render_deployment_for_ci(
+                    commit_sha,
+                    deployment.get("started_at")
+                )
         except RenderAPIError as exc:
             return jsonify({
                 "error": "Unable to verify Render deployment",

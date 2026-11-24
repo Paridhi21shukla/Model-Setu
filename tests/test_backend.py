@@ -582,6 +582,125 @@ def test_webhook_completion_event(client, monkeypatch):
     assert saved["render_deploy_id"] == "dep-render-test-789"
 
 
+
+def test_webhook_uses_verified_render_deploy_id(client, monkeypatch):
+    from backend import app as backend_app
+
+    secret = "test-secret"
+    deploy_id = "dep-exact-123"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda requested_id: {"id": requested_id, "status": "live"}
+    )
+    monkeypatch.setattr(
+        backend_app,
+        "find_render_deployment_for_ci",
+        lambda *args: (_ for _ in ()).throw(AssertionError("Fallback should not run"))
+    )
+
+    deployment = database.create_deployment(
+        version="ci-exact-1",
+        status="pending",
+        commit_sha="commit-exact-1",
+        run_id="run-exact-1"
+    )
+    payload = json.dumps({
+        "event": "completed",
+        "run_id": "run-exact-1",
+        "deployment_id": deployment["id"],
+        "status": "success",
+        "render_deploy_id": deploy_id
+    }, separators=(",", ":")).encode()
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": make_webhook_signature(payload, secret)},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 200
+    assert response.json["render_deploy_id"] == deploy_id
+    assert database.get_deployment_by_id(deployment["id"])["status"] == "success"
+
+
+def test_webhook_keeps_exact_render_deploy_pending_until_live(client, monkeypatch):
+    from backend import app as backend_app
+
+    secret = "test-secret"
+    deploy_id = "dep-building-123"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda requested_id: {"id": requested_id, "status": "build_in_progress"}
+    )
+
+    deployment = database.create_deployment(
+        version="ci-exact-pending",
+        status="pending",
+        commit_sha="commit-exact-pending",
+        run_id="run-exact-pending"
+    )
+    payload = json.dumps({
+        "event": "completed",
+        "run_id": "run-exact-pending",
+        "deployment_id": deployment["id"],
+        "status": "success",
+        "render_deploy_id": deploy_id
+    }, separators=(",", ":")).encode()
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": make_webhook_signature(payload, secret)},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 202
+    assert response.json["status"] == "pending"
+    assert response.json["render_status"] == "build_in_progress"
+    assert database.get_deployment_by_id(deployment["id"])["status"] == "pending"
+
+
+def test_webhook_rejects_mismatched_render_deploy_id(client, monkeypatch):
+    from backend import app as backend_app
+
+    secret = "test-secret"
+    monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
+    monkeypatch.setattr(
+        backend_app,
+        "get_service_deploy",
+        lambda requested_id: {"id": "dep-different-456", "status": "live"}
+    )
+
+    deployment = database.create_deployment(
+        version="ci-exact-mismatch",
+        status="pending",
+        commit_sha="commit-exact-mismatch",
+        run_id="run-exact-mismatch"
+    )
+    payload = json.dumps({
+        "event": "completed",
+        "run_id": "run-exact-mismatch",
+        "deployment_id": deployment["id"],
+        "status": "success",
+        "render_deploy_id": "dep-requested-123"
+    }, separators=(",", ":")).encode()
+
+    response = client.post(
+        "/webhook",
+        data=payload,
+        headers={"X-Model-Setu-Signature": make_webhook_signature(payload, secret)},
+        content_type="application/json"
+    )
+
+    assert response.status_code == 502
+    assert database.get_deployment_by_id(deployment["id"])["status"] == "pending"
+
+
 def test_webhook_rejects_wrong_run_id(client, monkeypatch):
     secret = "test-secret"
     monkeypatch.setenv("DEPLOYMENT_WEBHOOK_SECRET", secret)
