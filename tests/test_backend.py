@@ -666,6 +666,73 @@ def test_find_render_deployment_by_commit_not_found(monkeypatch):
     assert backend_app.find_render_deployment_by_commit("unknown-commit") is None
 
 
+
+def test_find_render_deployment_for_ci_matches_deploy_hook_with_commit(monkeypatch):
+    from backend import app as backend_app
+
+    deployments = [
+        {
+            "id": "dep-correct",
+            "status": "live",
+            "trigger": "deploy_hook",
+            "createdAt": "2026-11-24T05:50:00Z",
+            "commit": {"id": "service-config-commit"}
+        },
+        {
+            "id": "dep-later",
+            "status": "live",
+            "trigger": "deploy_hook",
+            "createdAt": "2026-11-24T05:55:00Z",
+            "commit": {"id": "another-commit"}
+        }
+    ]
+
+    monkeypatch.setattr(
+        backend_app,
+        "find_render_deployment_by_commit",
+        lambda commit_sha: None
+    )
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: deployments
+    )
+
+    result = backend_app.find_render_deployment_for_ci(
+        "ci-commit",
+        "Tue, 24 Nov 2026 05:45:59 GMT"
+    )
+
+    assert result["id"] == "dep-correct"
+
+
+def test_find_render_deployment_for_ci_rejects_deploy_hook_outside_window(monkeypatch):
+    from backend import app as backend_app
+
+    monkeypatch.setattr(
+        backend_app,
+        "find_render_deployment_by_commit",
+        lambda commit_sha: None
+    )
+    monkeypatch.setattr(
+        backend_app,
+        "list_service_deploys",
+        lambda: [{
+            "id": "dep-too-late",
+            "trigger": "deploy_hook",
+            "createdAt": "2026-11-24T06:20:00Z",
+            "commit": {"id": "service-config-commit"}
+        }]
+    )
+
+    result = backend_app.find_render_deployment_for_ci(
+        "ci-commit",
+        "Tue, 24 Nov 2026 05:45:59 GMT"
+    )
+
+    assert result is None
+
+
 def test_webhook_keeps_deployment_pending_when_render_is_not_live(client, monkeypatch):
     from backend import app as backend_app
 

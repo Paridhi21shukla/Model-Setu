@@ -107,17 +107,16 @@ def find_render_deployment_for_ci(commit_sha, started_at=None):
     if start_time is None:
         return None
 
-    end_time = start_time + timedelta(minutes=10)
+    end_time = start_time + timedelta(minutes=30)
     candidates = []
 
     for deployment in list_service_deploys():
         if deployment.get("trigger") != "deploy_hook":
             continue
 
-        if (deployment.get("commit") or {}).get("id"):
-            continue
-
-        created_at = parse_deployment_timestamp(deployment.get("createdAt"))
+        created_at = parse_deployment_timestamp(
+            deployment.get("createdAt")
+        )
 
         if created_at is not None and start_time <= created_at <= end_time:
             candidates.append((created_at, deployment))
@@ -125,7 +124,8 @@ def find_render_deployment_for_ci(commit_sha, started_at=None):
     if not candidates:
         return None
 
-    candidates.sort(key=lambda item: item[0], reverse=True)
+    # Select the earliest eligible deploy-hook after this CI run started.
+    candidates.sort(key=lambda item: item[0])
     return candidates[0][1]
 
 
