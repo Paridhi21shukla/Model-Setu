@@ -62,16 +62,16 @@
     <form id="predictionForm">
       <div class="grid">
         <label>Sepal length (cm)
-          <input name="sepalLength" type="number" step="any" min="0" value="5.1" required>
+          <input name="sepalLength" type="number" step="any" min="4.3" max="7.9" value="5.1" required>
         </label>
         <label>Sepal width (cm)
-          <input name="sepalWidth" type="number" step="any" min="0" value="3.5" required>
+          <input name="sepalWidth" type="number" step="any" min="2.0" max="4.4" value="3.5" required>
         </label>
         <label>Petal length (cm)
-          <input name="petalLength" type="number" step="any" min="0" value="1.4" required>
+          <input name="petalLength" type="number" step="any" min="1.0" max="6.9" value="1.4" required>
         </label>
         <label>Petal width (cm)
-          <input name="petalWidth" type="number" step="any" min="0" value="0.2" required>
+          <input name="petalWidth" type="number" step="any" min="0.1" max="2.5" value="0.2" required>
         </label>
       </div>
       <button id="predictButton" type="submit">Run Prediction →</button>
