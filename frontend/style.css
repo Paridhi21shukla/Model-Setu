@@ -843,3 +843,34 @@ footer {
         flex-direction: column;
     }
 }
+
+
+/* Rollback history status labels */
+.rollback-status {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.rollback-status-success {
+    color: var(--green);
+    background: #39d6a018;
+}
+
+.rollback-status-failed {
+    color: var(--red);
+    background: #ff718518;
+}
+
+.rollback-status-pending {
+    color: var(--blue);
+    background: #61a9ff18;
+}
+
+.rollback-status-unknown {
+    color: var(--muted);
+    background: #93a2bd18;
+}

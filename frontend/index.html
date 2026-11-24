@@ -196,6 +196,40 @@
                 </div>
             </section>
 
+            <section id="rollback-history" class="panel deployments-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h2>Rollback History</h2>
+                        <p>Track Render rollback operations and their completion status.</p>
+                    </div>
+                    <button class="secondary-button" id="rollback-history-refresh-btn">
+                        ↻ Refresh rollback history
+                    </button>
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ROLLBACK ID</th>
+                                <th>TARGET DEPLOYMENT</th>
+                                <th>RENDER DEPLOYMENT ID</th>
+                                <th>STATUS</th>
+                                <th>CREATED AT</th>
+                                <th>COMPLETED AT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rollback-table">
+                            <tr>
+                                <td colspan="6" class="empty-state">
+                                    Loading rollback history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
 
             <section id="github-actions" class="panel github-panel">
                 <div class="panel-heading">

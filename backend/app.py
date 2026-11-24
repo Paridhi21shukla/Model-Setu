@@ -36,6 +36,7 @@ from backend.database import (
     update_deployment_status,
     create_rollback_operation,
     get_rollback_operation,
+    get_all_rollback_operations,
     finish_rollback_operation
 )
 
@@ -469,6 +470,17 @@ def rollback_status(rollback_id):
 
     except RenderAPIError as exc:
         return jsonify({"error": str(exc)}), 502
+
+
+
+@app.route("/rollback-operations", methods=["GET"])
+def rollback_operations_history():
+    operations = get_all_rollback_operations()
+
+    return jsonify({
+        "count": len(operations),
+        "rollback_operations": operations
+    }), 200
 
 
 @app.route("/metrics", methods=["GET"])

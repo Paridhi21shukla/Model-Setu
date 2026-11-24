@@ -453,6 +453,23 @@ def get_rollback_operation(rollback_id):
         connection.close()
 
 
+
+def get_all_rollback_operations():
+    connection = get_connection()
+
+    try:
+        rows = connection.execute("""
+            SELECT *
+            FROM rollback_operations
+            ORDER BY id DESC
+        """).fetchall()
+
+        return [dict(row) for row in rows]
+
+    finally:
+        connection.close()
+
+
 def finish_rollback_operation(rollback_id, status):
     if status not in ("success", "failed"):
         raise ValueError("Rollback status must be success or failed")

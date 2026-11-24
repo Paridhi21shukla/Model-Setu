@@ -10,6 +10,7 @@ const elements = {
     activeVersion: document.getElementById("active-version"),
     activeContent: document.getElementById("active-deployment-content"),
     table: document.getElementById("deployment-table"),
+    rollbackTable: document.getElementById("rollback-table"),
     backendStatus: document.getElementById("backend-status"),
     sidebarStatus: document.getElementById("sidebar-status"),
     sidebarDot: document.getElementById("sidebar-status-dot"),
@@ -260,7 +261,7 @@ function renderDeploymentHistory(deployments, activeDeployment) {
                         class="rollback-button"
                         data-id="${id}"
                         ${canRollback ? "" : "disabled"}
-                        title="${canRollback ? "Restore this record in local deployment history only; Render will not be rolled back" : "Rollback unavailable"}"
+                        title="${canRollback ? "Trigger an actual rollback of this deployment on Render" : "Rollback unavailable"}"
                     >
                         Rollback (Render)
                     </button>
@@ -305,6 +306,45 @@ async function loadDeployments() {
     renderStatistics(deployments);
     renderActiveDeployment(activeDeployment);
     renderDeploymentHistory(deployments, activeDeployment);
+}
+
+
+async function loadRollbackHistory() {
+    const data = await apiRequest("/rollback-operations");
+    const operations = data.rollback_operations || [];
+
+    if (operations.length === 0) {
+        elements.rollbackTable.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    No rollback operations recorded yet.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    elements.rollbackTable.innerHTML = operations.map(operation => {
+        const status = String(operation.status || "unknown").toLowerCase();
+        const safeStatus = ["success", "failed", "pending"].includes(status)
+            ? status
+            : "unknown";
+
+        return `
+            <tr>
+                <td>#${escapeHTML(operation.id)}</td>
+                <td>#${escapeHTML(operation.target_deployment_id)}</td>
+                <td>${escapeHTML(operation.render_deploy_id || "—")}</td>
+                <td>
+                    <span class="rollback-status rollback-status-${safeStatus}">
+                        ${escapeHTML(status)}
+                    </span>
+                </td>
+                <td>${escapeHTML(formatDate(operation.created_at))}</td>
+                <td>${escapeHTML(formatDate(operation.completed_at))}</td>
+            </tr>
+        `;
+    }).join("");
 }
 
 function parsePrometheusMetric(metricsText, metricName) {
@@ -465,6 +505,19 @@ async function refreshDashboard() {
     }
 
     await loadMetrics();
+
+    try {
+        await loadRollbackHistory();
+    } catch (error) {
+        elements.rollbackTable.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    Unable to load rollback history.
+                </td>
+            </tr>
+        `;
+        console.error("Rollback history error:", error);
+    }
 
     elements.lastUpdated.textContent =
         `Last checked: ${new Date().toLocaleTimeString()}`;
@@ -731,3 +784,6 @@ if (githubElements.repository) {
 
     loadGitHubIntegration();
 }
+
+document.getElementById("rollback-history-refresh-btn")
+    .addEventListener("click", loadRollbackHistory);

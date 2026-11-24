@@ -85,6 +85,36 @@ def test_get_deployment_history(client):
     assert response.json["deployments"][0]["version"] == "1.0.0"
 
 
+
+def test_get_rollback_operations_history(client):
+    deployment_response = client.post(
+        "/deployments",
+        json={"version": "1.0.0", "status": "success"}
+    )
+
+    deployment_id = deployment_response.json["deployment"]["id"]
+
+    rollback_id, error = database.create_rollback_operation(
+        deployment_id,
+        "render-test-deploy-123"
+    )
+
+    assert error is None
+    assert rollback_id is not None
+
+    response = client.get("/rollback-operations")
+
+    assert response.status_code == 200
+    assert response.json["count"] == 1
+
+    operation = response.json["rollback_operations"][0]
+
+    assert operation["id"] == rollback_id
+    assert operation["target_deployment_id"] == deployment_id
+    assert operation["render_deploy_id"] == "render-test-deploy-123"
+    assert operation["status"] == "pending"
+
+
 def test_get_deployment_by_id(client):
     created = client.post(
         "/deployments",
