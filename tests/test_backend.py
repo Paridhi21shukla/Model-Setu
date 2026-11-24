@@ -1364,3 +1364,16 @@ def test_failed_successful_deployment_preserves_previous_active(client):
     assert active is not None
     assert active["version"] == "1.0.0"
     assert active["is_active"] == 1
+
+
+def test_cors_allows_patch_method(client):
+    response = client.get("/health")
+
+    allowed_methods = response.headers.get(
+        "Access-Control-Allow-Methods", ""
+    )
+
+    assert "PATCH" in allowed_methods
+    assert "GET" in allowed_methods
+    assert "POST" in allowed_methods
+    assert "OPTIONS" in allowed_methods
