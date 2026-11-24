@@ -93,6 +93,15 @@
     const details = document.getElementById('details');
     const status = document.getElementById('serviceStatus');
 
+    // Clear stale prediction whenever the user changes an input.
+    form.addEventListener('input', () => {
+      result.style.display = 'none';
+      result.classList.remove('error');
+      prediction.textContent = '';
+      details.textContent = '';
+      status.textContent = '';
+    });
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       button.disabled = true;
