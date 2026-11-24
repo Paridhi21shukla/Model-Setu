@@ -2,6 +2,7 @@
 from flask import Flask, jsonify, Response, request
 from prometheus_client import (
     Counter,
+    Gauge,
     Histogram,
     generate_latest,
     CONTENT_TYPE_LATEST
@@ -142,6 +143,27 @@ REQUEST_LATENCY = Histogram(
     "model_setu_http_request_duration_seconds",
     "HTTP request duration in seconds",
     ["endpoint"]
+)
+
+DEPLOYMENTS_TOTAL = Gauge(
+    "model_setu_deployments_total",
+    "Total deployment records"
+)
+
+DEPLOYMENTS_BY_STATUS = Gauge(
+    "model_setu_deployments_by_status",
+    "Deployment records grouped by status",
+    ["status"]
+)
+
+ACTIVE_DEPLOYMENT = Gauge(
+    "model_setu_active_deployment",
+    "Whether an active deployment exists"
+)
+
+LATEST_DEPLOYMENT_TIMESTAMP = Gauge(
+    "model_setu_latest_deployment_timestamp",
+    "Unix timestamp of the latest deployment"
 )
 
 
@@ -451,6 +473,36 @@ def rollback_status(rollback_id):
 
 @app.route("/metrics", methods=["GET"])
 def metrics():
+    deployments = get_all_deployments()
+
+    DEPLOYMENTS_TOTAL.set(len(deployments))
+
+    for status in ("success", "failed", "pending"):
+        count = sum(
+            1 for deployment in deployments
+            if deployment.get("status") == status
+        )
+        DEPLOYMENTS_BY_STATUS.labels(status=status).set(count)
+
+    active = get_active_deployment()
+    ACTIVE_DEPLOYMENT.set(1 if active else 0)
+
+    latest_timestamp = 0
+    if deployments:
+        latest = deployments[0]
+        timestamp_value = (
+            latest.get("deployed_at")
+            or latest.get("completed_at")
+            or latest.get("started_at")
+        )
+        parsed = parse_deployment_timestamp(
+            str(timestamp_value) if timestamp_value else None
+        )
+        if parsed:
+            latest_timestamp = parsed.timestamp()
+
+    LATEST_DEPLOYMENT_TIMESTAMP.set(latest_timestamp)
+
     return Response(
         generate_latest(),
         mimetype=CONTENT_TYPE_LATEST

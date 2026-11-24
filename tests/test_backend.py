@@ -355,6 +355,31 @@ def test_metrics_endpoint(client):
     assert "text/plain" in response.content_type
 
 
+
+def test_deployment_metrics_reflect_database_records(client):
+    for version, status in (
+        ("test-success", "success"),
+        ("test-failed", "failed"),
+        ("test-pending", "pending"),
+    ):
+        response = client.post(
+            "/deployments",
+            json={"version": version, "status": status}
+        )
+        assert response.status_code == 201
+
+    response = client.get("/metrics")
+    metrics = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "model_setu_deployments_total 3.0" in metrics
+    assert 'model_setu_deployments_by_status{status="success"} 1.0' in metrics
+    assert 'model_setu_deployments_by_status{status="failed"} 1.0' in metrics
+    assert 'model_setu_deployments_by_status{status="pending"} 1.0' in metrics
+    assert "model_setu_active_deployment 1.0" in metrics
+    assert "model_setu_latest_deployment_timestamp" in metrics
+
+
 # -------------------------
 # DEPLOYMENT LIFECYCLE TESTS
 # -------------------------

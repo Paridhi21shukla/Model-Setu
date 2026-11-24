@@ -723,6 +723,111 @@
       ],
       "title": "Average ML Prediction Latency (seconds)",
       "type": "stat"
+    },
+    {
+      "id": 10,
+      "title": "Total Deployments",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "model_setu_deployments_total",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 11,
+      "title": "Deployments by Status",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 6,
+        "y": 21,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "model_setu_deployments_by_status",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 12,
+      "title": "Active Deployment",
+      "type": "stat",
+      "gridPos": {
+        "x": 18,
+        "y": 21,
+        "w": 6,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "model_setu_active_deployment",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 13,
+      "title": "Latest Deployment Time",
+      "type": "stat",
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 12,
+        "h": 5
+      },
+      "targets": [
+        {
+          "expr": "model_setu_latest_deployment_timestamp",
+          "refId": "A"
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
     }
   ],
   "preload": false,
