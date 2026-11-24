@@ -617,10 +617,37 @@ def deployment_webhook():
         if not commit_sha:
             return jsonify({"error": "Deployment commit SHA is missing"}), 400
 
+        print(
+            "[CI DEBUG] Completion received:",
+            {
+                "deployment_id": deployment_id,
+                "run_id": run_id,
+                "commit_sha": commit_sha,
+                "started_at": deployment.get("started_at")
+            },
+            flush=True
+        )
+
         try:
             render_deployment = find_render_deployment_for_ci(
                 commit_sha,
                 deployment.get("started_at")
+            )
+
+            print(
+                "[CI DEBUG] Render match result:",
+                {
+                    "found": render_deployment is not None,
+                    "render_deploy_id": (
+                        render_deployment.get("id")
+                        if render_deployment else None
+                    ),
+                    "render_status": (
+                        render_deployment.get("status")
+                        if render_deployment else None
+                    )
+                },
+                flush=True
             )
         except RenderAPIError as exc:
             return jsonify({
