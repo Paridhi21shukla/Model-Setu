@@ -24,3 +24,5 @@ frontend/build/
 
 # Local backup files
 *.backup
+/monitoring/prometheus/grafana_cloud_token
+.vercel/

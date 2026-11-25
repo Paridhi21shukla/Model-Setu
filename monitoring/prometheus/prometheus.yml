@@ -12,3 +12,15 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["ml-service:5002"]
+
+  - job_name: "model-setu-production-backend"
+    metrics_path: /metrics
+    scheme: https
+    static_configs:
+      - targets: ["model-setu-backend.onrender.com:443"]
+
+remote_write:
+  - url: https://prometheus-prod-43-prod-ap-south-1.grafana.net/api/prom/push
+    basic_auth:
+      username: "3793844"
+      password_file: /etc/prometheus/grafana_cloud_token
