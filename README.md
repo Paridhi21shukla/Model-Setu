@@ -1,150 +1,151 @@
 # Model-Setu
-### CI/CD Deployment Pipeline for Machine Learning Applications
 
-Model-Setu is a cloud-based deployment management platform designed to automate the testing, containerization, deployment, tracking, and monitoring of machine learning applications.
+**CI/CD Deployment Pipeline for Machine Learning Applications**
 
-It combines a Flask-based ML inference service with a deployment management backend, GitHub Actions CI/CD, Docker, Render, Prometheus, and Grafana.
+Model-Setu is a deployment-engineering project that demonstrates how a machine-learning application can be tested, packaged, deployed, tracked, and monitored through an integrated CI/CD workflow.
+
+The system combines a Flask-based ML inference API, a deployment-management backend, Docker, GitHub Actions, GitHub Container Registry (GHCR), Render, Prometheus, and Grafana.
+
+> **Project scope:** Model-Setu focuses on the software delivery and operational lifecycle of an ML application. It does not add an AI-assisted analysis layer.
 
 ---
 
-## 1. Project Overview
+## Contents
 
-Deploying an ML application involves more than training a model. Developers also need to test application code, package services, deploy updates, monitor API performance, and manage deployment versions.
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Delivery workflow](#delivery-workflow)
+- [Technology stack](#technology-stack)
+- [Services and responsibilities](#services-and-responsibilities)
+- [API reference](#api-reference)
+- [Run locally](#run-locally)
+- [Monitoring](#monitoring)
+- [Deployment tracking and rollback](#deployment-tracking-and-rollback)
+- [Repository layout](#repository-layout)
+- [Verification and known limitations](#verification-and-known-limitations)
+- [Security notes](#security-notes)
+- [Future work](#future-work)
 
-Model-Setu addresses this workflow by connecting automated CI/CD processes with deployment tracking, API monitoring, and a rollback mechanism.
+## Overview
 
-### Key Objectives
+Deploying an ML model is only one part of delivering an ML application. The surrounding service also needs repeatable tests, a consistent runtime package, a deployment process, operational visibility, and a way to understand which version is active.
 
-- Automate application testing through GitHub Actions.
-- Build Docker images for consistent application packaging.
-- Trigger cloud deployments on updates to the main branch.
-- Track deployment versions, commits, and execution status.
-- Provide APIs for deployment management and rollback.
-- Monitor API traffic, latency, and ML prediction activity.
+Model-Setu brings these activities into one demonstrable workflow.
 
-## 2. System Architecture
+### Objectives
+
+- Run automated tests when code is pushed or a pull request is opened.
+- Build and publish a versioned ML-service container image.
+- Trigger the configured Render deployment from the main-branch workflow.
+- Record deployment versions, commit SHAs, workflow run IDs, and statuses.
+- Expose deployment-management and rollback APIs.
+- Export application and inference metrics for Prometheus.
+- Visualize request, prediction, and deployment metrics in Grafana.
+
+## Architecture
 
 ```mermaid
 flowchart TD
     A[Developer] --> B[GitHub Repository]
     B --> C[GitHub Actions]
-    C --> D[Automated Pytest Tests]
-    D --> E[Docker Image Build]
-    E --> F{Push to main?}
-    F -->|Yes| G[Render Deploy Hook]
-    G --> H[Render ML Service]
-    C -->|Signed Webhooks| I[Flask Backend]
-    I --> J[Deployment History]
-    I --> K[Rollback Management]
-    H --> L[ML Prediction API]
-    M[Frontend Dashboard] --> I
-    H --> N[Prometheus Metrics]
-    I --> N
-    N --> O[Grafana Dashboard]
+    C --> D[Start deployment record]
+    D --> E[Pytest suite]
+    E --> F[Backend Docker validation]
+    F --> G[Build and publish ML image to GHCR]
+    G --> H[Render deploy hook]
+    H --> I[Render ML inference service]
+    C --> J[Signed completion webhook]
+    J --> K[Flask deployment backend]
+    K --> L[(Deployment database)]
+    K --> M[Render API integration]
+    N[Frontend dashboard] --> K
+    K --> O[Prometheus metrics]
+    I --> O
+    O --> P[Grafana dashboards]
 ```
 
-## 3. End-to-End CI/CD Workflow
+The frontend is a static HTML/CSS/JavaScript client that communicates with the backend API. The Docker Compose configuration runs the backend, ML service, Prometheus, and Grafana locally.
 
-1. A developer pushes code to the GitHub repository.
-2. GitHub Actions checks out the latest code.
-3. Python dependencies are installed.
-4. The backend receives a signed webhook to create a deployment tracking record.
-5. Pytest executes the automated test suite.
-6. Docker Buildx builds the ML service image.
-7. For pushes to `main`, GitHub Actions triggers the Render deployment hook.
-8. A completion webhook updates the deployment status.
-9. The backend maintains deployment history and active deployment information.
-10. Prometheus collects application metrics, which Grafana visualizes.
+## Delivery workflow
 
-**Note:** The current GitHub Actions workflow builds the Docker image with `push: false`. Render deployment is triggered separately through its deploy hook.
+The GitHub Actions workflow is defined in `.github/workflows/ci.yml`.
 
-## 4. Technology Stack
+1. A developer pushes a commit or opens a pull request against `main`.
+2. GitHub Actions checks out the repository and installs the pinned Python dependencies.
+3. For main-branch push and manual workflow runs, the workflow sends a signed start event to the backend and receives a deployment record ID.
+4. Pytest runs the automated test suite.
+5. Docker builds the backend image as a build validation step.
+6. The ML-service image is built. For non-pull-request events, the workflow publishes the `latest` tag and the commit-SHA tag to GHCR.
+7. For main-branch push and manual workflow runs, the workflow invokes the configured Render deploy hook.
+8. The completion step reports the workflow result to the backend. On successful jobs, it polls while Render deployment tracking is pending.
+9. The backend stores deployment state and exposes it through its API.
+10. Prometheus scrapes metrics from the local backend and ML service; Grafana reads the Prometheus data source.
 
-| Component | Technology |
-|---|---|
-| Programming Language | Python |
-| Backend API | Flask |
-| ML Framework | Scikit-learn |
-| ML Algorithm | Random Forest Classifier |
-| Dataset | Iris |
-| Automated Testing | Pytest |
-| Containerization | Docker |
-| CI/CD | GitHub Actions |
-| Cloud Hosting | Render |
-| Version Control | Git and GitHub |
-| Metrics Collection | Prometheus |
-| Monitoring Dashboard | Grafana |
-| Frontend | HTML, CSS, JavaScript |
-| Deployment Tracking | Backend database |
+**Important distinction:** the workflow validates the backend Docker image but publishes the ML-service image to GHCR. The Render deploy hook is a separate deployment trigger. Do not interpret a successful image build alone as proof that every production endpoint or dashboard has been independently tested.
 
-## 5. Application Components
+The workflow uses a concurrency group to serialize production deployment runs and reduce overlapping deployment-tracking ambiguity.
 
-### ML Inference Service
+## Technology stack
 
-The ML service provides a REST API for Iris flower classification.
-
-- Accepts flower measurements as input.
-- Returns the predicted Iris class and confidence.
-- Exposes health, model information, version, and metrics endpoints.
-
-### Deployment Management Backend
-
-The Flask backend provides:
-
-- Deployment creation and history.
-- Deployment status tracking.
-- Active deployment information.
-- GitHub repository and workflow integration endpoints.
-- HMAC-SHA256 signed webhook verification.
-- Render deployment rollback initiation and status tracking.
-- Prometheus metrics endpoint.
-
-### Frontend Dashboard
-
-The frontend provides an interface for interacting with the backend's deployment management APIs and viewing deployment information.
-
-## 6. API Endpoints
-
-### ML Service
-
-Base URL: `https://model-setu.onrender.com`
-
-| Method | Endpoint | Purpose |
+| Area | Technology | Responsibility |
 |---|---|---|
-| GET | `/` | Service status |
-| GET | `/health` | Health check and model status |
-| GET | `/version` | Service version |
-| GET | `/model-info` | Model information |
-| POST | `/predict` | Iris flower prediction |
-| GET | `/metrics` | Prometheus metrics |
+| Language | Python | Backend, ML API, automation |
+| Backend | Flask | Deployment-management REST API |
+| ML | scikit-learn | Iris classification model |
+| Model persistence | joblib | Load the trained model artifact |
+| Testing | pytest | Automated test suite |
+| Containers | Docker, Docker Compose | Packaging and local orchestration |
+| CI/CD | GitHub Actions | Test, build, publish, deploy trigger |
+| Image registry | GitHub Container Registry | Store ML-service images |
+| Cloud hosting | Render | Host backend and ML service |
+| Database | SQLite / PostgreSQL | Persist deployment records |
+| Metrics | Prometheus client, Prometheus | Instrumentation and scraping |
+| Dashboards | Grafana | Metrics visualization |
+| Frontend | HTML, CSS, JavaScript | Deployment dashboard interface |
 
-### Backend Service
+## Services and responsibilities
 
-Base URL: `https://model-setu-backend.onrender.com`
+### ML inference service
 
-| Method | Endpoint | Purpose |
+The ML service exposes a REST API for Iris flower classification using a scikit-learn Random Forest classifier. It validates the request payload, performs inference, and returns the predicted class and model metadata.
+
+The model metadata endpoint reports the model's evaluation information. **Model accuracy and an individual prediction's confidence are different measures** and should not be conflated.
+
+### Deployment-management backend
+
+The Flask backend is responsible for:
+
+- Creating and listing deployment records.
+- Retrieving a deployment and the active deployment.
+- Updating pending deployment status.
+- Receiving HMAC-SHA256 signed CI/CD webhook events.
+- Reading Render deployment information through the Render API.
+- Initiating and tracking Render rollback operations.
+- Exposing deployment and HTTP request metrics.
+- Providing GitHub user, repository, branch, and workflow integration routes.
+
+### Frontend dashboard
+
+The `frontend/` directory contains the static dashboard client. It presents deployment and workflow information by calling the backend API. The repository contains the frontend source; a separate public frontend hosting deployment is not asserted here.
+
+## API reference
+
+The following tables describe the routes implemented in the repository. The hosted base URLs are:
+
+- **ML service:** https://model-setu.onrender.com
+- **Backend:** https://model-setu-backend.onrender.com
+
+### ML service
+
+| Method | Route | Purpose |
 |---|---|---|
-| GET | `/` | Backend status |
-| GET | `/health` | Backend health check |
-| GET | `/version` | Backend version |
-| GET | `/deployments` | List deployment history |
-| POST | `/deployments` | Create deployment record |
-| GET | `/deployments/<id>` | Get deployment details |
-| GET | `/active-deployment` | Get active deployment |
-| PATCH | `/deployments/<id>/status` | Update deployment status |
-| POST | `/rollback/<id>` | Initiate Render rollback |
-| GET | `/rollback/status/<id>` | Check rollback status |
+| GET | `/` | Service identity and status |
+| GET | `/health` | Health and model-loaded status |
+| GET | `/model-info` | Model metadata |
 | GET | `/metrics` | Prometheus metrics |
-| POST | `/webhook` | Receive signed CI/CD webhooks |
-| GET | `/github/user` | GitHub user integration |
-| GET | `/github/repositories` | List GitHub repositories |
-| GET | `/github/repositories/<owner>/<repo_name>/branches` | List repository branches |
-| POST | `/github/workflows/dispatch` | Trigger GitHub workflow |
-| GET | `/github/workflows/runs` | List workflow runs |
+| POST | `/predict` | Predict an Iris class |
 
-## 7. Example ML Prediction
-
-Send a POST request to `/predict`:
+Example request to `POST /predict`:
 
 ```json
 {
@@ -152,225 +153,223 @@ Send a POST request to `/predict`:
 }
 ```
 
-Example response:
+The `features` array must contain exactly four numeric values. A successful response contains the predicted class, class ID, confidence, model name, and model version.
+
+Example response shape:
 
 ```json
 {
+  "prediction": "setosa",
   "class_id": 0,
   "confidence": 1.0,
   "model_name": "iris-random-forest",
-  "model_version": "1.0.0",
-  "prediction": "setosa"
+  "model_version": "1.0.0"
 }
 ```
 
-The model information endpoint reports a test accuracy of 0.90 (90%). Prediction confidence and overall model accuracy are different measurements.
+The values above are an illustrative example for the supplied sample input, not a guarantee that every request returns the same prediction.
 
-### Test the Live ML API
+### Backend service
 
-```bash
-curl https://model-setu.onrender.com/health
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/` | Backend identity and status |
+| GET | `/health` | Backend health check |
+| GET | `/version` | Backend version |
+| GET | `/deployments` | List deployment records |
+| POST | `/deployments` | Create a deployment record |
+| GET | `/deployments/{id}` | Retrieve one deployment |
+| PATCH | `/deployments/{id}/status` | Complete a pending deployment |
+| GET | `/active-deployment` | Retrieve the active deployment |
+| POST | `/rollback/{deployment_id}` | Initiate a Render rollback |
+| GET | `/rollback/status/{rollback_id}` | Check rollback operation status |
+| GET | `/rollback-operations` | List rollback operations |
+| GET | `/metrics` | Prometheus metrics |
+| POST | `/webhook` | Receive signed CI/CD events |
+| GET | `/github/user` | Get authenticated GitHub user |
+| GET | `/github/repositories` | List accessible repositories |
+| GET | `/github/repositories/{owner}/{repo_name}/branches` | List repository branches |
+| POST | `/github/workflows/dispatch` | Dispatch a GitHub workflow |
+| GET | `/github/workflows/runs` | List workflow runs |
 
-curl https://model-setu.onrender.com/model-info
+Some backend routes depend on configured GitHub or Render credentials. See [Security notes](#security-notes).
 
-curl -X POST https://model-setu.onrender.com/predict \
-  -H "Content-Type: application/json" \
-  -d '{"features":[5.1,3.5,1.4,0.2]}'
-
-curl https://model-setu.onrender.com/metrics
-```
-
-## 8. Monitoring with Prometheus and Grafana
-
-Model-Setu includes a local monitoring stack configured with Prometheus and Grafana.
-
-Prometheus is configured to scrape metrics every 5 seconds from:
-
-- Backend service: `host.docker.internal:5001`
-- ML service: `host.docker.internal:5002`
-
-### Grafana Dashboard
-
-Dashboard name: **Model-Setu | Deployment & API Monitoring**
-
-The dashboard contains the following panels:
-
-| Panel | What it monitors |
-|---|---|
-| Total API Requests | Total API request count |
-| Requests Per Second (5m) | API request rate |
-| HTTP Requests by Endpoint | Traffic across API endpoints |
-| Request Latency (Average, seconds) | Average API response latency |
-| HTTP Requests by Status Code | HTTP response status distribution |
-| ML Prediction Requests | Prediction request volume |
-| ML Predictions by Class | Predicted class distribution |
-| ML Prediction Errors | Prediction failures |
-| Average ML Prediction Latency (seconds) | ML inference latency |
-
-Dashboard configuration is stored in:
-
-`monitoring/grafana/dashboards/model-setu.json`
-
-Prometheus and Grafana provisioning files are stored under:
-
-`monitoring/prometheus/` and `monitoring/grafana/provisioning/`
-
-## 9. Deployment Tracking and Rollback
-
-The backend maintains deployment records containing information such as commit SHA, workflow run ID, version, and deployment status.
-
-The GitHub Actions workflow sends signed start and completion events to the backend. HMAC-SHA256 signatures are used to verify webhook authenticity.
-
-The rollback workflow:
-
-1. Validates the selected deployment.
-2. Finds the corresponding Render deployment using its commit SHA.
-3. Requests a rollback through the Render API.
-4. Tracks the rollback operation status.
-5. Updates the active deployment after Render reports the target deployment as live.
-
-**Verification note:** Automated tests cover rollback logic using mocked Render API responses. The production rollback flow has not yet been verified end to end.
-
-## 10. Run the Project Locally
+## Run locally
 
 ### Prerequisites
 
-- Python 3.9 or later
 - Git
+- Python 3.12 (the CI workflow and Docker images use Python 3.12)
 - Docker Desktop with Docker Compose
-- A code editor such as VS Code
 
-### Step 1: Clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/Paridhi21shukla/Model-Setu.git
 cd Model-Setu
 ```
 
-### Step 2: Create a virtual environment
+### 2. Configure environment variables
+
+Create a local `.env` file from the example:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+cp .env.example .env
 ```
 
-### Step 3: Install dependencies
+Set a strong local Grafana administrator password in `.env`:
 
-```bash
-pip install -r requirements.txt
+```dotenv
+GRAFANA_ADMIN_PASSWORD=replace-with-a-strong-password
 ```
 
-### Step 4: Start the backend
+Add the GitHub, Render, and webhook settings only when you need the corresponding backend integrations. Never commit the populated `.env` file.
 
-Open a terminal and run:
+For PostgreSQL, set `DATABASE_URL` to a valid PostgreSQL connection string. If `DATABASE_URL` is not set, the backend uses SQLite at the configured `DATABASE_PATH` (the Compose setup uses the persistent `/data/deployments.db` volume).
 
-```bash
-python backend/app.py
-```
-
-The backend runs on:
-
-`http://localhost:5001`
-
-### Step 5: Start the local ML service
-
-Open another terminal, activate the virtual environment, and run:
+### 3. Start the application stack
 
 ```bash
 docker compose up --build -d
 ```
 
-This starts the ML service, Prometheus, and Grafana.
+This starts all four Compose services:
 
-### Step 6: Access the services
-
-| Service | Local URL |
+| Service | Local address |
 |---|---|
 | Backend API | http://localhost:5001 |
-| ML Service | http://localhost:5002 |
+| ML inference API | http://localhost:5002 |
 | Prometheus | http://localhost:9090 |
 | Grafana | http://localhost:3000 |
 
-The default local Grafana credentials configured in Docker Compose are:
+Grafana uses the administrator username `admin` and the password configured by `GRAFANA_ADMIN_PASSWORD` in your local `.env` file.
 
-- Username: `admin`
-- Password: `modelsetu123`
-
-Change the default password before using the setup in a shared or exposed environment.
-
-### Step 7: Run automated tests
+### 4. Check service health
 
 ```bash
+curl http://localhost:5001/health
+curl http://localhost:5002/health
+```
+
+### 5. Run the automated tests
+
+Create and activate a virtual environment if you want to run tests outside Docker:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
 python -m pytest -v
 ```
 
-## 11. Project Structure
+### 6. Stop the stack
+
+```bash
+docker compose down
+```
+
+To remove persistent local database, Prometheus, and Grafana data as well, use `docker compose down -v`. This permanently deletes those local Compose volumes.
+
+## Monitoring
+
+Prometheus configuration is stored in `monitoring/prometheus/prometheus.yml`. The local Compose targets are:
+
+- `backend:5001` — backend metrics endpoint.
+- `ml-service:5002` — ML-service metrics endpoint.
+
+The configuration also includes a production backend scrape target and a Grafana Cloud `remote_write` destination. The Grafana Cloud token is read from the local file `monitoring/prometheus/grafana_cloud_token`; this secret file must not be committed or shared.
+
+Grafana is provisioned with a Prometheus data source and a dashboard named **Model-Setu | Deployment & API Monitoring**.
+
+The dashboard configuration is stored at:
+
+`monitoring/grafana/dashboards/model-setu.json`
+
+The dashboard includes panels for HTTP request volume and latency, status codes, ML prediction counts and errors, and deployment state metrics. A panel's presence in the JSON configuration does not, by itself, prove that its query currently returns data.
+
+## Deployment tracking and rollback
+
+### Deployment tracking
+
+The CI workflow sends start and completion events to the backend. The requests are signed using HMAC-SHA256 and the backend verifies the signature before processing the event. Deployment records include fields such as version, commit SHA, workflow run ID, timestamps, status, and the associated Render deployment ID when available.
+
+### Rollback
+
+The backend can request a Render rollback for an eligible previously successful deployment and records the resulting rollback operation. The status endpoint checks Render's deployment state and updates the rollback record when the operation reaches a terminal state.
+
+**Verification limitation:** automated tests exercise rollback logic with mocked Render API responses. A production rollback has not been verified end to end, so this project documentation does not claim that a live rollback has been successfully completed.
+
+## Repository layout
 
 ```text
 Model-Setu/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── backend/
 │   ├── app.py
 │   ├── database.py
-│   └── render_service.py
+│   ├── render_service.py
+│   └── github_service.py
 ├── ml-service/
 │   ├── app.py
+│   ├── train.py
 │   └── Dockerfile
 ├── frontend/
 │   ├── index.html
 │   ├── style.css
 │   └── script.js
-├── tests/
 ├── monitoring/
 │   ├── prometheus/
 │   └── grafana/
 │       ├── dashboards/
 │       └── provisioning/
-├── .github/
-│   └── workflows/
-│       └── ci.yml
+├── tests/
+├── docs/
 ├── docker-compose.yml
 ├── requirements.txt
 └── README.md
 ```
 
-## 12. Project Status
+## Verification and known limitations
 
-| Feature | Status |
+The following statements distinguish implemented functionality from checks that still require independent confirmation.
+
+| Area | Current evidence / qualification |
 |---|---|
-| ML inference API | Implemented and deployed |
-| Docker containerization | Implemented |
-| Automated tests | Implemented |
-| GitHub Actions CI workflow | Implemented |
-| Render deployment trigger | Configured |
-| Deployment history and tracking | Implemented |
-| Signed webhook verification | Implemented |
-| Deployment management APIs | Implemented |
-| Render rollback integration | Implemented; production flow not fully verified |
-| Prometheus configuration | Configured |
-| Grafana dashboard | Configured |
-| GitHub workflow integration APIs | Implemented |
+| Automated test suite | A GitHub Actions run completed successfully, including the test step. |
+| Backend Docker build | The CI workflow validates a backend Docker image build. |
+| ML image publishing | The workflow publishes the ML-service image to GHCR for non-pull-request events. |
+| Render deployment | A successful main-branch workflow has completed its deployment-tracking step; the Render services have also reported live deployments. |
+| API behaviour | Local ML health and sample prediction behaviour were previously tested. Recheck the public endpoints before a final live-demo claim. |
+| Prometheus | Local configuration validation and earlier target checks succeeded. Recheck current target health before presenting live monitoring. |
+| Grafana | Grafana health and dashboard configuration were checked; the Grafana Cloud Explore UI has not been independently verified. |
+| Rollback | Automated tests cover mocked API behaviour; production rollback remains unverified end to end. |
+| Frontend hosting | Frontend source exists in the repository; a public frontend deployment is not confirmed. |
 
-## 13. Future Scope
+A successful CI run is useful evidence of the pipeline, but it should not be described as proof of every production API, monitoring panel, or rollback path.
 
-- Verify production rollback through a controlled end-to-end test.
-- Extend monitoring with alerting and cloud metrics.
-- Add AI-assisted log analysis and anomaly detection.
-- Improve deployment analytics and reporting.
-- Explore AWS services such as Amazon ECR, EC2, and CloudWatch.
-- Enhance dashboard usability and deployment visualization.
+## Security notes
 
-## 14. Security
+- Keep `.env`, API keys, webhook secrets, registry credentials, and Grafana Cloud tokens out of Git.
+- Configure deployment credentials as GitHub Actions Secrets or protected environment variables.
+- Use a strong, unique `GRAFANA_ADMIN_PASSWORD`; do not expose the local default or a shared password.
+- Keep the Prometheus token file local and ensure it is excluded from version control.
+- The backend verifies CI/CD webhook signatures using HMAC-SHA256.
+- Restrict access to operational endpoints and dashboards when deploying beyond a local demonstration.
 
-- Never commit `.env` files, passwords, API tokens, or cloud credentials.
-- Store secrets in environment variables or an appropriate secret manager.
-- Use GitHub Actions Secrets for CI/CD credentials.
-- Verify webhook signatures before processing deployment events.
-- Change default credentials before exposing local services.
+## Future work
+
+The following are potential extensions, not claims about the current implementation:
+
+- Perform a controlled end-to-end production rollback verification.
+- Independently verify and document live Grafana Cloud data visibility.
+- Add alerting for service health, error rates, and deployment failures.
+- Improve deployment analytics and operational reporting.
+- Evaluate additional cloud infrastructure options such as AWS.
 
 ---
 
-**Repository:** https://github.com/Paridhi21shukla/Model-Setu
-
-**ML Service:** https://model-setu.onrender.com
-
-**Backend Service:** https://model-setu-backend.onrender.com
+**Repository:** https://github.com/Paridhi21shukla/Model-Setu  
+**ML service:** https://model-setu.onrender.com  
+**Backend service:** https://model-setu-backend.onrender.com
