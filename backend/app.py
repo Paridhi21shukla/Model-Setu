@@ -726,13 +726,10 @@ def deployment_webhook():
                     not isinstance(render_deployment, dict)
                     or render_deployment.get("id") != render_deploy_id
                 ):
-                    # Some Render deploy-hook responses do not expose the
-                    # final deployment ID consistently. Fall back to the
-                    # bounded deploy-hook window for this exact CI run.
-                    render_deployment = find_render_deployment_for_ci(
-                        commit_sha,
-                        deployment.get("started_at")
-                    )
+                    return jsonify({
+                        "error": "Render deployment ID verification failed",
+                        "status": "pending"
+                    }), 502
             else:
                 render_deployment = find_render_deployment_for_ci(
                     commit_sha,
