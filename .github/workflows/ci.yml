@@ -142,7 +142,6 @@ jobs:
           BACKEND_URL: https://model-setu-backend.onrender.com
           GITHUB_RUN_ID: ${{ github.run_id }}
           DEPLOYMENT_ID: ${{ steps.webhook_start.outputs.deployment_id }}
-          RENDER_DEPLOY_ID: ${{ steps.render_deploy.outputs.render_deploy_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
           python - <<'PYTHON'
@@ -160,9 +159,6 @@ jobs:
               "deployment_id": int(os.environ["DEPLOYMENT_ID"]),
               "status": "success" if job_status == "success" else "failed"
           }
-          render_deploy_id = os.environ.get("RENDER_DEPLOY_ID", "").strip()
-          if render_deploy_id:
-              payload_data["render_deploy_id"] = render_deploy_id
 
           payload = json.dumps(payload_data, separators=(",", ":")).encode()
 
