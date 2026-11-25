@@ -852,7 +852,8 @@ def test_find_render_deployment_for_ci_matches_deploy_hook_with_commit(monkeypat
         "Tue, 24 Nov 2026 05:45:59 GMT"
     )
 
-    assert result["id"] == "dep-correct"
+    # The newest eligible deploy-hook remains active after overlapping deploys.
+    assert result["id"] == "dep-later"
 
 
 def test_find_render_deployment_for_ci_rejects_deploy_hook_outside_window(monkeypatch):
