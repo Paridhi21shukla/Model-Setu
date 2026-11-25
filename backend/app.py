@@ -125,8 +125,11 @@ def find_render_deployment_for_ci(commit_sha, started_at=None):
     if not candidates:
         return None
 
-    # Select the earliest eligible deploy-hook after this CI run started.
-    candidates.sort(key=lambda item: item[0])
+    # Select the newest eligible deploy-hook. Concurrent CI runs can
+    # create multiple deployments in the same time window; choosing the
+    # earliest can associate this run with an older deployment that is
+    # deactivated by the newer deployment before verification completes.
+    candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][1]
 
 def get_render_deployment_by_id(deploy_id):
