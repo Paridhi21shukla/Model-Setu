@@ -119,9 +119,31 @@ jobs:
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         env:
           RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          IMAGE_URL: ${{ steps.image.outputs.name }}:${{ github.sha }}
         run: |
           response_file="$RUNNER_TEMP/render-deploy-response.json"
-          http_status=$(curl --fail --silent --show-error --request POST "$RENDER_DEPLOY_HOOK_URL" --output "$response_file" --write-out "%{http_code}")
+
+          # Pass the exact image built for this commit to the Render image-backed service.
+          deploy_url=$(python - <<'PYTHON'
+          import os
+          from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+          hook_url = os.environ["RENDER_DEPLOY_HOOK_URL"]
+          image_url = os.environ["IMAGE_URL"]
+          parts = urlsplit(hook_url)
+          query = parse_qsl(parts.query, keep_blank_values=True)
+          query.append(("imgURL", image_url))
+          print(urlunsplit((
+              parts.scheme,
+              parts.netloc,
+              parts.path,
+              urlencode(query),
+              parts.fragment
+          )))
+          PYTHON
+          )
+
+          http_status=$(curl --fail --silent --show-error --request POST "$deploy_url" --output "$response_file" --write-out "%{http_code}")
 
           if [ "$http_status" != "200" ] && [ "$http_status" != "202" ]; then
             echo "Unexpected Render deploy-hook HTTP status: $http_status"
