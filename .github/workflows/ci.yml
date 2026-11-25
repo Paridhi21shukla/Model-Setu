@@ -11,6 +11,11 @@ permissions:
   contents: read
   packages: write
 
+# Serialize production deploy runs so CI tracking maps to one Render deploy.
+concurrency:
+  group: model-setu-production-deploy
+  cancel-in-progress: false
+
 jobs:
   test-and-build:
     name: Test and Build Docker Image
