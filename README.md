@@ -44,6 +44,8 @@ Model-Setu brings these activities into one demonstrable workflow.
 
 ## Architecture
 
+The detailed architecture diagram and component responsibilities are maintained in [`docs/architecture.md`](docs/architecture.md).
+
 ```mermaid
 flowchart TD
     A[Developer] --> B[GitHub Repository]
