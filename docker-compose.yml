@@ -1,4 +1,21 @@
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: model-setu-backend:1.0.0
+    container_name: model-setu-backend
+    ports:
+      - "5001:5001"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_PATH: /data/deployments.db
+    volumes:
+      - backend_data:/data
+    restart: unless-stopped
+
   ml-service:
     build:
       context: .
@@ -21,6 +38,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
     depends_on:
+      - backend
       - ml-service
     restart: unless-stopped
 
@@ -43,5 +61,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  backend_data:
   prometheus_data:
   grafana_data:
