@@ -12,4 +12,4 @@ COPY ml-service/ /app/
 
 EXPOSE 5002
 
-CMD ["python", "app.py"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5002} --workers 2 --threads 4 app:app"]
