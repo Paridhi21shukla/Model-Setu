@@ -150,17 +150,24 @@ jobs:
             exit 1
           fi
 
-          if [ "$http_status" = "200" ]; then
-            python - "$response_file" >> "$GITHUB_OUTPUT" <<'PYTHON'
+          # Render may return either 200 or 202. Parse the response body
+          # for the exact deployment ID in both cases when one is provided.
+          python - "$response_file" >> "$GITHUB_OUTPUT" <<'PYTHON'
           import json, sys
-          with open(sys.argv[1], encoding="utf-8") as response_file:
-              response = json.load(response_file)
+          try:
+              with open(sys.argv[1], encoding="utf-8") as response_file:
+                  response = json.load(response_file)
+          except (OSError, json.JSONDecodeError):
+              response = {}
+
           deploy = response.get("deploy", response)
           deploy_id = deploy.get("id") if isinstance(deploy, dict) else None
           if isinstance(deploy_id, str) and deploy_id.strip():
-              print("render_deploy_id=" + deploy_id)
+              print("render_deploy_id=" + deploy_id.strip())
+              print("Render deployment ID captured:", deploy_id.strip())
+          else:
+              print("Render hook response did not include a deployment ID; backend will verify by commit and deploy window.")
           PYTHON
-          fi
 
       - name: Complete deployment tracking
         if: always() && steps.webhook_start.outputs.deployment_id != ''
@@ -169,6 +176,7 @@ jobs:
           BACKEND_URL: https://model-setu-backend.onrender.com
           GITHUB_RUN_ID: ${{ github.run_id }}
           DEPLOYMENT_ID: ${{ steps.webhook_start.outputs.deployment_id }}
+          RENDER_DEPLOY_ID: ${{ steps.render_deploy.outputs.render_deploy_id }}
           JOB_STATUS: ${{ job.status }}
         run: |
           python - <<'PYTHON'
@@ -186,6 +194,10 @@ jobs:
               "deployment_id": int(os.environ["DEPLOYMENT_ID"]),
               "status": "success" if job_status == "success" else "failed"
           }
+
+          render_deploy_id = os.environ.get("RENDER_DEPLOY_ID", "").strip()
+          if render_deploy_id:
+              payload_data["render_deploy_id"] = render_deploy_id
 
           payload = json.dumps(payload_data, separators=(",", ":")).encode()
 
