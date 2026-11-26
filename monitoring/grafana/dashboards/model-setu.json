@@ -73,12 +73,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum(model_setu_http_requests_total)",
+          "expr": "sum(increase(model_setu_http_requests_total{endpoint!=\"metrics\"}[$__range]))",
           "legendFormat": "Requests",
           "refId": "A"
         }
       ],
-      "title": "Total API Requests",
+      "title": "API Requests (Selected Range)",
       "type": "stat"
     },
     {
@@ -133,7 +133,7 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum(rate(model_setu_http_requests_total[5m]))",
+          "expr": "sum(rate(model_setu_http_requests_total{endpoint!=\"metrics\"}[5m]))",
           "legendFormat": "Requests/sec",
           "refId": "A"
         }
@@ -226,8 +226,8 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum by (endpoint) (model_setu_http_requests_total)",
-          "legendFormat": "{{endpoint}}",
+          "expr": "sum by (job, endpoint) (rate(model_setu_http_requests_total{endpoint!=\"metrics\"}[5m]))",
+          "legendFormat": "{{job}} / {{endpoint}}",
           "refId": "A"
         }
       ],
@@ -319,8 +319,8 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum by (endpoint) (rate(model_setu_http_request_duration_seconds_sum[5m])) / sum by (endpoint) (rate(model_setu_http_request_duration_seconds_count[5m]))",
-          "legendFormat": "{{endpoint}}",
+          "expr": "sum by (job, endpoint) (rate(model_setu_http_request_duration_seconds_sum{endpoint!=\"metrics\"}[5m])) / sum by (job, endpoint) (rate(model_setu_http_request_duration_seconds_count{endpoint!=\"metrics\"}[5m]))",
+          "legendFormat": "{{job}} / {{endpoint}}",
           "refId": "A"
         }
       ],
@@ -412,8 +412,8 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum by (status) (model_setu_http_requests_total)",
-          "legendFormat": "HTTP {{status}}",
+          "expr": "sum by (job, status) (rate(model_setu_http_requests_total{endpoint!=\"metrics\"}[5m]))",
+          "legendFormat": "{{job}} / HTTP {{status}}",
           "refId": "A"
         }
       ],
@@ -471,8 +471,9 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "model_setu_ml_prediction_requests_total",
-          "refId": "A"
+          "expr": "sum by (job) (model_setu_ml_prediction_requests_total)",
+          "refId": "A",
+          "legendFormat": "{{job}}"
         }
       ],
       "title": "ML Prediction Requests",
@@ -562,8 +563,8 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "model_setu_ml_predictions_total",
-          "legendFormat": "{{prediction}}",
+          "expr": "sum by (job, prediction) (model_setu_ml_predictions_total)",
+          "legendFormat": "{{job}} / {{prediction}}",
           "refId": "A"
         }
       ],
@@ -654,8 +655,8 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "model_setu_ml_prediction_errors_total",
-          "legendFormat": "{{reason}}",
+          "expr": "sum by (job, reason) (model_setu_ml_prediction_errors_total)",
+          "legendFormat": "{{job}} / {{reason}}",
           "refId": "A"
         }
       ],
@@ -716,9 +717,10 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(model_setu_ml_prediction_duration_seconds_sum)\n/\nsum(model_setu_ml_prediction_duration_seconds_count)",
+          "expr": "sum by (job) (rate(model_setu_ml_prediction_duration_seconds_sum[5m])) / sum by (job) (rate(model_setu_ml_prediction_duration_seconds_count[5m]))",
           "range": true,
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "{{job}}"
         }
       ],
       "title": "Average ML Prediction Latency (seconds)",
@@ -737,7 +739,8 @@
       "targets": [
         {
           "expr": "model_setu_deployments_total",
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "{{job}}"
         }
       ],
       "datasource": {
@@ -763,7 +766,7 @@
       "targets": [
         {
           "expr": "model_setu_deployments_by_status",
-          "legendFormat": "{{status}}",
+          "legendFormat": "{{job}} / {{status}}",
           "refId": "A"
         }
       ],
@@ -790,7 +793,8 @@
       "targets": [
         {
           "expr": "model_setu_active_deployment",
-          "refId": "A"
+          "refId": "A",
+          "legendFormat": "{{job}}"
         }
       ],
       "datasource": {
@@ -815,8 +819,9 @@
       },
       "targets": [
         {
-          "expr": "model_setu_latest_deployment_timestamp",
-          "refId": "A"
+          "expr": "model_setu_latest_deployment_timestamp > 0",
+          "refId": "A",
+          "legendFormat": "{{job}}"
         }
       ],
       "datasource": {
@@ -824,7 +829,20 @@
         "uid": "prometheus"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "dateTimeAsIso",
+          "decimals": 0,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "options": {}
@@ -848,5 +866,5 @@
   "timezone": "browser",
   "title": "Model-Setu | Deployment & API Monitoring",
   "uid": "model-setu-overview",
-  "version": 2
+  "version": 3
 }
