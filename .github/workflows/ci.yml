@@ -284,6 +284,7 @@ jobs:
           PYTHON
 
       - name: Smoke test deployed Vercel frontend
+        id: frontend_smoke
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
@@ -424,3 +425,8 @@ jobs:
                   break
               time.sleep(20)
           PYTHON
+      - name: Enforce frontend smoke-test result
+        if: always() && steps.frontend_smoke.outcome == 'failure'
+        run: |
+          echo "The deployed Vercel frontend smoke test failed."
+          exit 1
