@@ -66,7 +66,7 @@ flowchart TD
     O --> P[Grafana dashboards]
 ```
 
-The frontend is a static HTML/CSS/JavaScript client that communicates with the backend API. The Docker Compose configuration runs the backend, ML service, Prometheus, and Grafana locally.
+The frontend is a static HTML/CSS/JavaScript client that communicates with the backend API. The public frontend is hosted at https://model-setu.vercel.app. The Docker Compose configuration runs the backend, ML service, Prometheus, and Grafana locally.
 
 ## Delivery workflow
 
@@ -81,7 +81,7 @@ The GitHub Actions workflow is defined in `.github/workflows/ci.yml`.
 7. For main-branch push and manual workflow runs, the workflow invokes the configured Render deploy hook.
 8. The completion step reports the workflow result to the backend. On successful jobs, it polls while Render deployment tracking is pending.
 9. The backend stores deployment state and exposes it through its API.
-10. Prometheus scrapes metrics from the local backend and ML service; Grafana reads the Prometheus data source.
+10. The checked-in Prometheus configuration defines scrape jobs for the local backend and ML service, plus production backend and ML endpoints. In the local Compose stack, Grafana reads the local Prometheus data source; Prometheus can additionally remote-write to Grafana Cloud when its token file is configured.
 
 **Important distinction:** the workflow validates the backend Docker image but publishes the ML-service image to GHCR. The Render deploy hook is a separate deployment trigger. Do not interpret a successful image build alone as proof that every production endpoint or dashboard has been independently tested.
 
@@ -279,7 +279,7 @@ Prometheus configuration is stored in `monitoring/prometheus/prometheus.yml`. Th
 - `backend:5001` — backend metrics endpoint.
 - `ml-service:5002` — ML-service metrics endpoint.
 
-The configuration also includes a production backend scrape target and a Grafana Cloud `remote_write` destination. The Grafana Cloud token is read from the local file `monitoring/prometheus/grafana_cloud_token`; this secret file must not be committed or shared.
+The configuration also defines production scrape targets for the backend and ML service, and a Grafana Cloud `remote_write` destination. These are configuration entries, not proof that a continuously running Prometheus instance is scraping production. The Compose stack runs Prometheus locally; Render currently hosts the backend and ML service, not Prometheus or Grafana. The Grafana Cloud token is read from the local file `monitoring/prometheus/grafana_cloud_token`; create this file with the Grafana Cloud Prometheus remote-write token before starting the full monitoring stack. This secret file must not be committed or shared.
 
 Grafana is provisioned with a Prometheus data source and a dashboard named **Model-Setu | Deployment & API Monitoring**.
 
@@ -344,10 +344,10 @@ The following statements distinguish implemented functionality from checks that 
 | ML image publishing | The workflow publishes the ML-service image to GHCR for non-pull-request events. |
 | Render deployment | A successful main-branch workflow has completed its deployment-tracking step; the Render services have also reported live deployments. |
 | API behaviour | Local ML health and sample prediction behaviour were previously tested. Recheck the public endpoints before a final live-demo claim. |
-| Prometheus | Local configuration validation and earlier target checks succeeded. Recheck current target health before presenting live monitoring. |
+| Prometheus | Local and production scrape jobs are defined in configuration. Render logs showed backend `/metrics` scrapes, but continuous production ML scraping and Grafana Cloud ingestion have not been independently confirmed. Check Prometheus target health before presenting live monitoring. |
 | Grafana | Grafana health and dashboard configuration were checked; the Grafana Cloud Explore UI has not been independently verified. |
 | Rollback | Automated tests cover mocked API behaviour; production rollback remains unverified end to end. |
-| Frontend hosting | Frontend source exists in the repository; a public frontend deployment is not confirmed. |
+| Frontend hosting | The Vercel frontend routes and static assets passed the GitHub Actions smoke test in the latest verified run. |
 
 A successful CI run is useful evidence of the pipeline, but it should not be described as proof of every production API, monitoring panel, or rollback path.
 
