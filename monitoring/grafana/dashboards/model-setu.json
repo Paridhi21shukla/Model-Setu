@@ -42,7 +42,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -102,7 +103,8 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -199,7 +201,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "s",
+          "decimals": 3
         },
         "overrides": []
       },
@@ -292,7 +295,8 @@
               }
             ]
           },
-          "unit": "s"
+          "unit": "short",
+          "decimals": 0
         },
         "overrides": []
       },
@@ -385,7 +389,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -417,7 +421,7 @@
           "refId": "A"
         }
       ],
-      "title": "HTTP Requests by Status Code",
+      "title": "Application Request Rate (5m)",
       "type": "timeseries"
     },
     {
@@ -819,7 +823,7 @@
       },
       "targets": [
         {
-          "expr": "model_setu_latest_deployment_timestamp{job=\"model-setu-production-backend\"}",
+          "expr": "model_setu_latest_deployment_timestamp{job=\"model-setu-production-backend\"} * 1000",
           "refId": "A",
           "legendFormat": "Production"
         }
@@ -866,5 +870,5 @@
   "timezone": "browser",
   "title": "Model-Setu | Deployment & API Monitoring",
   "uid": "model-setu-overview",
-  "version": 4
+  "version": 5
 }
