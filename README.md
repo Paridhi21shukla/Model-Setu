@@ -22,6 +22,7 @@ The system combines a Flask-based ML inference API, a deployment-management back
 - [Monitoring](#monitoring)
 - [Deployment tracking and rollback](#deployment-tracking-and-rollback)
 - [Repository layout](#repository-layout)
+- [Final project run-through](docs/final-runthrough.md)
 - [Verification and known limitations](#verification-and-known-limitations)
 - [Security notes](#security-notes)
 - [Future work](#future-work)
@@ -66,7 +67,7 @@ flowchart TD
     O --> P[Grafana dashboards]
 ```
 
-The frontend is a static HTML/CSS/JavaScript client that communicates with the backend API. The public frontend is hosted at https://model-setu.vercel.app. The Docker Compose configuration runs the backend, ML service, Prometheus, and Grafana locally.
+The frontend is a static HTML/CSS/JavaScript client that communicates with the backend API. The public frontend is hosted at https://model-setu.vercel.app; its configured routes and static assets passed the frontend smoke test in CI Run #88. The Docker Compose configuration runs the backend, ML service, Prometheus, and Grafana locally.
 
 ## Delivery workflow
 
@@ -128,7 +129,7 @@ The Flask backend is responsible for:
 
 ### Frontend dashboard
 
-The `frontend/` directory contains the static dashboard client. It presents deployment and workflow information by calling the backend API. The repository contains the frontend source; a separate public frontend hosting deployment is not asserted here.
+The `frontend/` directory contains the static dashboard client. It presents deployment and workflow information by calling the backend API. The public static frontend is hosted at Vercel. CI verifies the configured frontend routes and static assets; the dashboard's live backend data should also be checked in the browser during a demonstration.
 
 ## API reference
 
