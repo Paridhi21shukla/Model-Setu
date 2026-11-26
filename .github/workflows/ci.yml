@@ -164,7 +164,7 @@ jobs:
           deploy_id = deploy.get("id") if isinstance(deploy, dict) else None
           if isinstance(deploy_id, str) and deploy_id.strip():
               print("render_deploy_id=" + deploy_id.strip())
-              print("Render deployment ID captured:", deploy_id.strip())
+              print("::notice::Render deployment ID captured: " + deploy_id.strip(), file=sys.stderr)
           else:
               print("Render hook response did not include a deployment ID; backend will verify by commit and deploy window.")
           PYTHON
