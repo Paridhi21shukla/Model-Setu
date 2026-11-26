@@ -177,6 +177,7 @@ jobs:
         run: |
           python - <<'PYTHON'
           import json
+          import os
           import time
           import urllib.request
           import urllib.error
@@ -210,8 +211,6 @@ jobs:
                       print(f"{label}: attempt {attempt} not ready: {exc}")
                       time.sleep(10)
               raise RuntimeError(f"{label} did not become ready: {last_error}")
-
-          import os
 
           wait_for(
               "Backend health",
