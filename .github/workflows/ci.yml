@@ -169,6 +169,97 @@ jobs:
               print("Render hook response did not include a deployment ID; backend will verify by commit and deploy window.")
           PYTHON
 
+      - name: Smoke test live backend and ML APIs
+        if: success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+        env:
+          BACKEND_URL: https://model-setu-backend.onrender.com
+          ML_SERVICE_URL: https://model-setu.onrender.com
+        run: |
+          python - <<'PYTHON'
+          import json
+          import time
+          import urllib.request
+          import urllib.error
+
+          backend = os.environ["BACKEND_URL"].rstrip("/")
+          ml_service = os.environ["ML_SERVICE_URL"].rstrip("/")
+
+          def request_json(url, method="GET", body=None, timeout=25):
+              data = None if body is None else json.dumps(body).encode()
+              headers = {"Accept": "application/json"}
+              if data is not None:
+                  headers["Content-Type"] = "application/json"
+              req = urllib.request.Request(url, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=timeout) as response:
+                  if response.status != 200:
+                      raise RuntimeError(f"{url} returned HTTP {response.status}")
+                  return json.loads(response.read().decode())
+
+          def wait_for(label, check, timeout_seconds=600):
+              deadline = time.monotonic() + timeout_seconds
+              attempt = 0
+              last_error = None
+              while time.monotonic() < deadline:
+                  attempt += 1
+                  try:
+                      result = check()
+                      print(f"{label}: ready on attempt {attempt}: {result}")
+                      return result
+                  except Exception as exc:
+                      last_error = exc
+                      print(f"{label}: attempt {attempt} not ready: {exc}")
+                      time.sleep(10)
+              raise RuntimeError(f"{label} did not become ready: {last_error}")
+
+          import os
+
+          wait_for(
+              "Backend health",
+              lambda: (
+                  (lambda data: data if data.get("status") == "healthy" else
+                   (_ for _ in ()).throw(RuntimeError(f"unexpected response: {data}")))(
+                      request_json(backend + "/health")
+                  )
+              )
+          )
+
+          wait_for(
+              "ML model health",
+              lambda: (
+                  (lambda data: data if data.get("status") == "healthy" and data.get("model_loaded") is True else
+                   (_ for _ in ()).throw(RuntimeError(f"model not ready: {data}")))(
+                      request_json(ml_service + "/health")
+                  )
+              )
+          )
+
+          model_info = request_json(ml_service + "/model-info")
+          required_metadata = ("model_name", "model_version", "classes")
+          missing = [key for key in required_metadata if key not in model_info]
+          if missing:
+              raise RuntimeError(f"ML model-info missing fields: {missing}")
+          print("ML model metadata:", model_info)
+
+          prediction = request_json(
+              ml_service + "/predict",
+              method="POST",
+              body={"features": [5.1, 3.5, 1.4, 0.2]}
+          )
+          if not prediction.get("prediction") or not 0 <= float(prediction.get("confidence", -1)) <= 1:
+              raise RuntimeError(f"Invalid prediction response: {prediction}")
+          print("Live ML prediction passed:", prediction)
+
+          backend_version = request_json(backend + "/version")
+          if backend_version.get("project") != "Model-Setu":
+              raise RuntimeError(f"Unexpected backend version response: {backend_version}")
+          print("Backend version passed:", backend_version)
+
+          deployment_history = request_json(backend + "/deployments")
+          if not isinstance(deployment_history.get("deployments"), list):
+              raise RuntimeError(f"Invalid deployment history response: {deployment_history}")
+          print("Deployment history API passed; records:", deployment_history.get("count"))
+          PYTHON
+
       - name: Notify backend
         if: always() && steps.webhook_start.outputs.deployment_id != ''
         env:
