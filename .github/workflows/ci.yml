@@ -169,7 +169,7 @@ jobs:
               print("Render hook response did not include a deployment ID; backend will verify by commit and deploy window.")
           PYTHON
 
-      - name: Complete deployment tracking
+      - name: Notify backend
         if: always() && steps.webhook_start.outputs.deployment_id != ''
         env:
           DEPLOYMENT_WEBHOOK_SECRET: ${{ secrets.DEPLOYMENT_WEBHOOK_SECRET }}
@@ -180,73 +180,68 @@ jobs:
           JOB_STATUS: ${{ job.status }}
         run: |
           python - <<'PYTHON'
-          import os, json, hmac, hashlib, time
-          import urllib.request
-          import urllib.error
+          import os, json, hmac, hashlib, time, socket
+          import urllib.request, urllib.error
 
           secret = os.environ["DEPLOYMENT_WEBHOOK_SECRET"]
-          url = os.environ["BACKEND_URL"] + "/webhook"
-          job_status = os.environ["JOB_STATUS"]
+          url = os.environ["BACKEND_URL"].rstrip("/") + "/webhook"
+          succeeded = os.environ["JOB_STATUS"] == "success"
 
           payload_data = {
               "event": "completed",
               "run_id": os.environ["GITHUB_RUN_ID"],
               "deployment_id": int(os.environ["DEPLOYMENT_ID"]),
-              "status": "success" if job_status == "success" else "failed"
+              "status": "success" if succeeded else "failed",
           }
-
-          render_deploy_id = os.environ.get("RENDER_DEPLOY_ID", "").strip()
-          if render_deploy_id:
-              payload_data["render_deploy_id"] = render_deploy_id
+          rid = os.environ.get("RENDER_DEPLOY_ID", "").strip()
+          if rid:
+              payload_data["render_deploy_id"] = rid
 
           payload = json.dumps(payload_data, separators=(",", ":")).encode()
-
-          signature = "sha256=" + hmac.new(
-              secret.encode(), payload, hashlib.sha256
-          ).hexdigest()
-
+          sig = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
           headers = {
               "Content-Type": "application/json",
-              "X-Model-Setu-Signature": signature
+              "X-Model-Setu-Signature": sig,
+              "User-Agent": "model-setu-ci/1.0",
           }
 
-          max_attempts = 30 if job_status == "success" else 1
+          RETRYABLE = {202, 502, 503, 504}
+          deadline = time.monotonic() + (900 if succeeded else 60)
+          attempt = 0
 
-          for attempt in range(1, max_attempts + 1):
-              req = urllib.request.Request(
-                  url, data=payload, headers=headers, method="POST"
-              )
-
+          while True:
+              attempt += 1
+              status, result = None, {}
+              req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
               try:
-                  with urllib.request.urlopen(req, timeout=60) as response:
-                      http_status = response.status
-                      result = json.loads(response.read())
-              except urllib.error.HTTPError as error:
-                  http_status = error.code
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      status = r.status
+                      result = json.loads(r.read())
+              except urllib.error.HTTPError as e:
+                  status = e.code
                   try:
-                      result = json.loads(error.read())
+                      result = json.loads(e.read())
                   except Exception:
-                      result = {"error": str(error)}
+                      result = {"error": str(e)}
+              except (urllib.error.URLError, TimeoutError, socket.timeout, ConnectionError) as e:
+                  result = {"error": repr(e)}
 
-                  if http_status != 502:
-                      raise RuntimeError(
-                          "Webhook HTTP {}: {}".format(http_status, result)
-                      )
+              print(f"Attempt {attempt}: HTTP {status}: {result}")
 
-              print("Attempt {}/{}: {}".format(attempt, max_attempts, result))
-
-              if http_status == 200 and result.get("status") in ("success", "failed"):
-                  print("Deployment tracking completed:", result)
+              if status == 200 and result.get("status") in ("success", "failed"):
+                  print("Done:", result)
                   break
 
-              if http_status not in (202, 502):
-                  raise RuntimeError("Unexpected webhook response: {}".format(result))
+              retryable = (status is None or status in RETRYABLE
+                           or (status == 200 and result.get("status") == "pending"))
+              if not retryable:
+                  raise RuntimeError(f"Webhook HTTP {status}: {result}")
 
-              if attempt == max_attempts:
-                  raise RuntimeError(
-                      "Render did not become live within 10 minutes. "
-                      "Deployment remains pending for investigation."
-                  )
-
+              if time.monotonic() + 20 > deadline:
+                  msg = "Webhook did not reach a final state before deadline."
+                  if succeeded:
+                      raise RuntimeError(msg)
+                  print("WARNING:", msg)
+                  break
               time.sleep(20)
           PYTHON
