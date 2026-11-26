@@ -74,11 +74,11 @@
       "targets": [
         {
           "expr": "sum(increase(model_setu_http_requests_total{endpoint!=\"metrics\"}[$__range]))",
-          "legendFormat": "Requests",
+          "legendFormat": "Application requests",
           "refId": "A"
         }
       ],
-      "title": "API Requests (Selected Range)",
+      "title": "Application API Requests (Selected Range)",
       "type": "stat"
     },
     {
@@ -133,12 +133,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum(rate(model_setu_http_requests_total{endpoint!=\"metrics\"}[5m]))",
-          "legendFormat": "Requests/sec",
+          "expr": "sum by (job, endpoint) (increase(model_setu_http_requests_total{endpoint!=\"metrics\"}[$__range]))",
+          "legendFormat": "{{job}} / {{endpoint}}",
           "refId": "A"
         }
       ],
-      "title": "Requests Per Second (5m)",
+      "title": "Application Requests by Endpoint (Selected Range)",
       "type": "stat"
     },
     {
@@ -226,12 +226,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum by (job, endpoint) (rate(model_setu_http_requests_total{endpoint!=\"metrics\"}[5m]))",
+          "expr": "sum by (job, endpoint) (increase(model_setu_http_request_duration_seconds_sum{endpoint!=\"metrics\"}[$__range])) / sum by (job, endpoint) (increase(model_setu_http_request_duration_seconds_count{endpoint!=\"metrics\"}[$__range]))",
           "legendFormat": "{{job}} / {{endpoint}}",
           "refId": "A"
         }
       ],
-      "title": "HTTP Requests by Endpoint",
+      "title": "Average Request Latency (Selected Range)",
       "type": "timeseries"
     },
     {
@@ -319,12 +319,12 @@
       "pluginVersion": "12.2.0",
       "targets": [
         {
-          "expr": "sum by (job, endpoint) (rate(model_setu_http_request_duration_seconds_sum{endpoint!=\"metrics\"}[5m])) / sum by (job, endpoint) (rate(model_setu_http_request_duration_seconds_count{endpoint!=\"metrics\"}[5m]))",
-          "legendFormat": "{{job}} / {{endpoint}}",
+          "expr": "sum by (job, status) (increase(model_setu_http_requests_total{endpoint!=\"metrics\"}[$__range]))",
+          "legendFormat": "{{job}} / HTTP {{status}}",
           "refId": "A"
         }
       ],
-      "title": "Request Latency (Average, seconds)",
+      "title": "Application Requests by HTTP Status (Selected Range)",
       "type": "timeseries"
     },
     {
@@ -738,9 +738,9 @@
       },
       "targets": [
         {
-          "expr": "model_setu_deployments_total",
+          "expr": "model_setu_deployments_total{job=\"model-setu-production-backend\"}",
           "refId": "A",
-          "legendFormat": "{{job}}"
+          "legendFormat": "Production"
         }
       ],
       "datasource": {
@@ -765,8 +765,8 @@
       },
       "targets": [
         {
-          "expr": "model_setu_deployments_by_status",
-          "legendFormat": "{{job}} / {{status}}",
+          "expr": "model_setu_deployments_by_status{job=\"model-setu-production-backend\"}",
+          "legendFormat": "{{status}}",
           "refId": "A"
         }
       ],
@@ -792,9 +792,9 @@
       },
       "targets": [
         {
-          "expr": "model_setu_active_deployment",
+          "expr": "model_setu_active_deployment{job=\"model-setu-production-backend\"}",
           "refId": "A",
-          "legendFormat": "{{job}}"
+          "legendFormat": "Production"
         }
       ],
       "datasource": {
@@ -819,9 +819,9 @@
       },
       "targets": [
         {
-          "expr": "model_setu_latest_deployment_timestamp > 0",
+          "expr": "model_setu_latest_deployment_timestamp{job=\"model-setu-production-backend\"}",
           "refId": "A",
-          "legendFormat": "{{job}}"
+          "legendFormat": "Production"
         }
       ],
       "datasource": {
@@ -866,5 +866,5 @@
   "timezone": "browser",
   "title": "Model-Setu | Deployment & API Monitoring",
   "uid": "model-setu-overview",
-  "version": 3
+  "version": 4
 }
