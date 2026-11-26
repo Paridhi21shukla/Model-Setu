@@ -11,7 +11,8 @@ class RenderAPIError(Exception):
 
 def _get_config():
     api_key = os.getenv("RENDER_API_KEY")
-    service_id = os.getenv("RENDER_SERVICE_ID")
+    # Prefer the explicitly scoped ML service ID; retain the legacy key as fallback.
+    service_id = os.getenv("RENDER_ML_SERVICE_ID") or os.getenv("RENDER_SERVICE_ID")
 
     if not api_key or not service_id:
         raise RenderAPIError(
