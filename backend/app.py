@@ -132,30 +132,58 @@ def find_render_deployment_for_ci(commit_sha, started_at=None):
     candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][1]
 
-def get_render_deployment_by_id(deploy_id):
-    """Resolve a Render deployment by exact ID.
+def _normalize_render_deploy(value):
+    """Unwrap Render deploy responses without assuming one envelope shape."""
+    current = value
+    for _ in range(4):
+        if isinstance(current, list):
+            return [_normalize_render_deploy(item) for item in current]
+        if not isinstance(current, dict):
+            return None
+        if isinstance(current.get("id"), str):
+            return current
+        nested = current.get("deploy")
+        if isinstance(nested, (dict, list)):
+            current = nested
+            continue
+        nested = current.get("data")
+        if isinstance(nested, (dict, list)):
+            current = nested
+            continue
+        return None
+    return None
 
-    Query Render's single-deployment endpoint first. The deploy list can be
-    paginated or briefly stale immediately after a deploy hook creates a
-    deployment, so it must not be the only source for exact-ID verification.
-    """
+
+def get_render_deployment_by_id(deploy_id):
+    """Resolve and verify a Render deployment by its exact ID."""
     try:
         response = get_service_deploy(deploy_id)
-        deployment = (
-            response.get("deploy", response)
-            if isinstance(response, dict) else None
-        )
+        deployment = _normalize_render_deploy(response)
         if isinstance(deployment, dict) and deployment.get("id") == deploy_id:
             return deployment
-    except RenderAPIError:
-        # A single-deploy lookup can be unavailable transiently; try the list.
-        pass
+        app.logger.warning(
+            "Render deploy lookup did not match requested ID; response_type=%s keys=%s returned_id=%s",
+            type(response).__name__,
+            sorted(response.keys()) if isinstance(response, dict) else None,
+            deployment.get("id") if isinstance(deployment, dict) else None
+        )
+    except RenderAPIError as exc:
+        app.logger.warning("Render single-deploy lookup failed: %s", exc)
 
     try:
-        for item in list_service_deploys():
-            deployment = item.get("deploy", item) if isinstance(item, dict) else None
-            if isinstance(deployment, dict) and deployment.get("id") == deploy_id:
-                return deployment
+        deployments = _normalize_render_deploy(list_service_deploys())
+        if isinstance(deployments, list):
+            for deployment in deployments:
+                if isinstance(deployment, dict) and deployment.get("id") == deploy_id:
+                    return deployment
+            returned_ids = [
+                item.get("id") for item in deployments
+                if isinstance(item, dict) and item.get("id")
+            ]
+            app.logger.warning(
+                "Render deploy ID not found in first deploy-list page; requested_id=%s returned_ids=%s",
+                deploy_id, returned_ids[:10]
+            )
     except RenderAPIError:
         raise
 
