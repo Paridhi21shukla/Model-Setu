@@ -133,30 +133,31 @@ def find_render_deployment_for_ci(commit_sha, started_at=None):
     return candidates[0][1]
 
 def get_render_deployment_by_id(deploy_id):
-    """Resolve a Render deployment by exact ID from the configured service.
+    """Resolve a Render deployment by exact ID.
 
-    The service deploy-list endpoint is the reliable lookup for deploy-hook
-    deployments. Accept only an exact ID match; never substitute another
-    deployment when the requested ID is absent.
+    Query Render's single-deployment endpoint first. The deploy list can be
+    paginated or briefly stale immediately after a deploy hook creates a
+    deployment, so it must not be the only source for exact-ID verification.
     """
     try:
-        for deployment in list_service_deploys():
-            if deployment.get("id") == deploy_id:
-                return deployment
-    except RenderAPIError as list_error:
-        # Fall back to the single-deploy endpoint only if listing is unavailable.
-        try:
-            response = get_service_deploy(deploy_id)
-        except RenderAPIError:
-            raise list_error
-
+        response = get_service_deploy(deploy_id)
         deployment = (
             response.get("deploy", response)
             if isinstance(response, dict) else None
         )
         if isinstance(deployment, dict) and deployment.get("id") == deploy_id:
             return deployment
-        return None
+    except RenderAPIError:
+        # A single-deploy lookup can be unavailable transiently; try the list.
+        pass
+
+    try:
+        for item in list_service_deploys():
+            deployment = item.get("deploy", item) if isinstance(item, dict) else None
+            if isinstance(deployment, dict) and deployment.get("id") == deploy_id:
+                return deployment
+    except RenderAPIError:
+        raise
 
     return None
 
