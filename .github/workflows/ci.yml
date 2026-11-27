@@ -235,7 +235,20 @@ jobs:
               )
           )
 
-          model_info = request_json(ml_service + "/model-info")
+          model_info = wait_for(
+              "Customer churn model deployment",
+              lambda: (
+                  (lambda data: data if (
+                      data.get("model_name") == "customer-churn-random-forest"
+                      and data.get("model_version") == "2.0.0"
+                      and data.get("classes") == ["stay", "churn"]
+                  ) else (_ for _ in ()).throw(
+                      RuntimeError(f"Old or unexpected model still serving: {data}")
+                  ))(request_json(ml_service + "/model-info"))
+              ),
+              timeout_seconds=900
+          )
+
           required_metadata = ("model_name", "model_version", "classes", "features", "dataset")
           missing = [key for key in required_metadata if key not in model_info]
           if missing:
