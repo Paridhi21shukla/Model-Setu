@@ -1,19 +1,18 @@
 {
-  "model_name": "iris-random-forest",
-  "model_version": "1.0.0",
+  "model_name": "customer-churn-random-forest",
+  "model_version": "2.0.0",
   "algorithm": "RandomForestClassifier",
-  "dataset": "Iris",
+  "dataset": "Synthetic Telco Customer Churn Demo",
   "features": [
-    "sepal length (cm)",
-    "sepal width (cm)",
-    "petal length (cm)",
-    "petal width (cm)"
+    "tenure_months",
+    "monthly_charges",
+    "support_tickets_3m",
+    "contract_months"
   ],
   "classes": [
-    "setosa",
-    "versicolor",
-    "virginica"
+    "stay",
+    "churn"
   ],
-  "test_accuracy": 0.9,
-  "training_samples": 150
+  "test_accuracy": 0.705,
+  "training_samples": 6000
 }

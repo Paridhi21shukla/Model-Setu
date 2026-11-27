@@ -2,43 +2,107 @@ import json
 from pathlib import Path
 
 import joblib
-from sklearn.datasets import load_iris
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import train_test_split
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model.pkl"
 METADATA_PATH = BASE_DIR / "model_meta.json"
 
+FEATURE_NAMES = [
+    "tenure_months",
+    "monthly_charges",
+    "support_tickets_3m",
+    "contract_months",
+]
+CLASS_NAMES = ["stay", "churn"]
 
-def train_and_save():
-    iris = load_iris()
-    X_train, X_test, y_train, y_test = train_test_split(
-        iris.data, iris.target,
-        test_size=0.2, random_state=42, stratify=iris.target
+
+def generate_customer_data(n_samples=6000):
+    """Generate deterministic synthetic customer data for the demo."""
+    rng = np.random.RandomState(42)
+
+    tenure = rng.randint(1, 73, n_samples)
+    monthly_charges = rng.uniform(20, 120, n_samples)
+    support_tickets = rng.randint(0, 11, n_samples)
+    contract_months = rng.choice([1, 12, 24], n_samples)
+
+    score = (
+        1.0
+        - 0.035 * tenure
+        + 0.025 * (monthly_charges - 70)
+        + 0.28 * support_tickets
+        - 0.045 * (contract_months - 1)
     )
 
-    evaluator = RandomForestClassifier(n_estimators=100, random_state=42)
-    evaluator.fit(X_train, y_train)
-    accuracy = accuracy_score(y_test, evaluator.predict(X_test))
+    probability = 1 / (1 + np.exp(-score))
+    churn = rng.binomial(1, probability)
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(iris.data, iris.target)
+    X = np.column_stack([
+        tenure,
+        monthly_charges,
+        support_tickets,
+        contract_months
+    ])
+
+    return X, churn
+
+
+def train_and_save():
+    X, y = generate_customer_data()
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y
+    )
+
+    evaluator = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=10,
+        random_state=42,
+        class_weight="balanced"
+    )
+
+    evaluator.fit(X_train, y_train)
+    predictions = evaluator.predict(X_test)
+    accuracy = accuracy_score(y_test, predictions)
+
+    model = RandomForestClassifier(
+        n_estimators=200,
+        max_depth=10,
+        random_state=42,
+        class_weight="balanced"
+    )
+
+    model.fit(X, y)
     joblib.dump(model, MODEL_PATH)
 
     metadata = {
-        "model_name": "iris-random-forest",
-        "model_version": "1.0.0",
+        "model_name": "customer-churn-random-forest",
+        "model_version": "2.0.0",
         "algorithm": "RandomForestClassifier",
-        "dataset": "Iris",
-        "features": iris.feature_names,
-        "classes": iris.target_names.tolist(),
+        "dataset": "Synthetic Telco Customer Churn Demo",
+        "features": FEATURE_NAMES,
+        "classes": CLASS_NAMES,
         "test_accuracy": round(float(accuracy), 4),
-        "training_samples": len(iris.data)
+        "training_samples": int(len(X))
     }
+
     METADATA_PATH.write_text(json.dumps(metadata, indent=2))
+
+    print("Customer Churn Model Training Completed")
     print(json.dumps(metadata, indent=2))
+    print("\nEvaluation:")
+    print(classification_report(
+        y_test,
+        predictions,
+        target_names=CLASS_NAMES
+    ))
     print("Model saved:", MODEL_PATH)
 
 

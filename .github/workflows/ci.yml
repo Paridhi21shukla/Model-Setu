@@ -35,6 +35,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Train ML model
+        run: python ml-service/train.py
+
       - name: Start deployment tracking
         id: webhook_start
         if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
@@ -233,19 +236,27 @@ jobs:
           )
 
           model_info = request_json(ml_service + "/model-info")
-          required_metadata = ("model_name", "model_version", "classes")
+          required_metadata = ("model_name", "model_version", "classes", "features", "dataset")
           missing = [key for key in required_metadata if key not in model_info]
           if missing:
               raise RuntimeError(f"ML model-info missing fields: {missing}")
-          print("ML model metadata:", model_info)
+          if model_info["model_name"] != "customer-churn-random-forest":
+              raise RuntimeError(f"Unexpected model name: {model_info['model_name']}")
+          if model_info["model_version"] != "2.0.0":
+              raise RuntimeError(f"Unexpected model version: {model_info['model_version']}")
+          if model_info["classes"] != ["stay", "churn"]:
+              raise RuntimeError(f"Unexpected customer classes: {model_info['classes']}")
+          print("Customer churn model metadata passed:", model_info)
 
           prediction = request_json(
               ml_service + "/predict",
               method="POST",
-              body={"features": [5.1, 3.5, 1.4, 0.2]}
+              body={"features": [12, 85, 3, 1]}
           )
-          if not prediction.get("prediction") or not 0 <= float(prediction.get("confidence", -1)) <= 1:
-              raise RuntimeError(f"Invalid prediction response: {prediction}")
+          if prediction.get("prediction") not in ("stay", "churn"):
+              raise RuntimeError(f"Unexpected customer churn prediction: {prediction}")
+          if not 0 <= float(prediction.get("confidence", -1)) <= 1:
+              raise RuntimeError(f"Invalid prediction confidence: {prediction}")
           print("Live ML prediction passed:", prediction)
 
           def request_text(url, timeout=25):

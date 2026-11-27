@@ -53,25 +53,25 @@
       <a href="./index.html">Deployment Dashboard ↗</a>
     </div>
 
-    <h1>ML Prediction Playground</h1>
+    <h1>Customer Churn Prediction</h1>
     <p class="muted">
-      Test the deployed Iris Random Forest model. Enter four flower measurements
-      to receive a prediction from the live Model-Setu ML service.
+      Test the deployed Customer Churn Random Forest model. Enter four customer details
+      to estimate whether the customer is likely to stay or churn.
     </p>
 
     <form id="predictionForm">
       <div class="grid">
-        <label>Sepal length (cm)
-          <input name="sepalLength" type="number" step="any" min="4.3" max="7.9" value="5.1" required>
+        <label>Customer Tenure (months)
+          <input name="tenureMonths" type="number" min="1" max="72" step="1" value="12" required>
         </label>
-        <label>Sepal width (cm)
-          <input name="sepalWidth" type="number" step="any" min="2.0" max="4.4" value="3.5" required>
+        <label>Monthly Charges
+          <input name="monthlyCharges" type="number" min="20" max="120" step="any" value="85" required>
         </label>
-        <label>Petal length (cm)
-          <input name="petalLength" type="number" step="any" min="1.0" max="6.9" value="1.4" required>
+        <label>Support Tickets (last 3 months)
+          <input name="supportTickets" type="number" min="0" max="10" step="1" value="3" required>
         </label>
-        <label>Petal width (cm)
-          <input name="petalWidth" type="number" step="any" min="0.1" max="2.5" value="0.2" required>
+        <label>Contract Duration (months)
+          <input name="contractMonths" type="number" min="1" max="24" step="1" value="1" required>
         </label>
       </div>
       <button id="predictButton" type="submit">Run Prediction →</button>
@@ -114,10 +114,10 @@
 
       const values = new FormData(form);
       const features = [
-        Number(values.get('sepalLength')),
-        Number(values.get('sepalWidth')),
-        Number(values.get('petalLength')),
-        Number(values.get('petalWidth'))
+        Number(values.get('tenureMonths')),
+        Number(values.get('monthlyCharges')),
+        Number(values.get('supportTickets')),
+        Number(values.get('contractMonths'))
       ];
 
       try {
@@ -130,7 +130,7 @@
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Prediction request failed');
 
-        document.getElementById('resultHeading').textContent = 'Predicted Iris species';
+        document.getElementById('resultHeading').textContent = 'Predicted Customer Status';
         prediction.textContent = data.prediction;
         details.textContent =
           `Confidence: ${(data.confidence * 100).toFixed(2)}% | ` +

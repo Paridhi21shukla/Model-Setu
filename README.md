@@ -94,7 +94,7 @@ The workflow uses a concurrency group to serialize production deployment runs an
 |---|---|---|
 | Language | Python | Backend, ML API, automation |
 | Backend | Flask | Deployment-management REST API |
-| ML | scikit-learn | Iris classification model |
+| ML | scikit-learn | Customer Churn classification model |
 | Model persistence | joblib | Load the trained model artifact |
 | Testing | pytest | Automated test suite |
 | Containers | Docker, Docker Compose | Packaging and local orchestration |
@@ -110,7 +110,7 @@ The workflow uses a concurrency group to serialize production deployment runs an
 
 ### ML inference service
 
-The ML service exposes a REST API for Iris flower classification using a scikit-learn Random Forest classifier. It validates the request payload, performs inference, and returns the predicted class and model metadata.
+The ML service exposes a REST API for Customer Churn prediction using a scikit-learn Random Forest classifier. It accepts four numeric customer features, performs inference, and returns the predicted customer status (stay or churn), confidence, and model metadata. The demonstration model is trained on synthetic data, not real telecom customer records.
 
 The model metadata endpoint reports the model's evaluation information. **Model accuracy and an individual prediction's confidence are different measures** and should not be conflated.
 
@@ -146,27 +146,27 @@ The following tables describe the routes implemented in the repository. The host
 | GET | `/health` | Health and model-loaded status |
 | GET | `/model-info` | Model metadata |
 | GET | `/metrics` | Prometheus metrics |
-| POST | `/predict` | Predict an Iris class |
+| POST | `/predict` | Predict customer churn status |
 
 Example request to `POST /predict`:
 
 ```json
 {
-  "features": [5.1, 3.5, 1.4, 0.2]
+  "features": [12, 85, 3, 1]
 }
 ```
 
-The `features` array must contain exactly four numeric values. A successful response contains the predicted class, class ID, confidence, model name, and model version.
+The `features` array must contain exactly four numeric values in this order: tenure in months, monthly charges, support tickets in the last three months, and contract duration in months. A successful response contains the predicted class, class ID, confidence, model name, and model version.
 
 Example response shape:
 
 ```json
 {
-  "prediction": "setosa",
+  "prediction": "stay",
   "class_id": 0,
   "confidence": 1.0,
-  "model_name": "iris-random-forest",
-  "model_version": "1.0.0"
+  "model_name": "customer-churn-random-forest",
+  "model_version": "2.0.0"
 }
 ```
 

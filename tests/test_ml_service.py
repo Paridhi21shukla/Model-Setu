@@ -18,7 +18,9 @@ def client():
 def test_model_info(client):
     response = client.get("/model-info")
     assert response.status_code == 200
-    assert response.json["model_version"] == "1.0.0"
+    assert response.json["model_name"] == "customer-churn-random-forest"
+    assert response.json["model_version"] == "2.0.0"
+    assert response.json["classes"] == ["stay", "churn"]
 
 
 def test_health(client):
@@ -29,21 +31,27 @@ def test_health(client):
 
 def test_valid_prediction(client):
     response = client.post(
-        "/predict", json={"features": [5.1, 3.5, 1.4, 0.2]}
+        "/predict",
+        json={"features": [12, 85, 3, 1]}
     )
     assert response.status_code == 200
     assert response.json["prediction"] in metadata["classes"]
     assert 0 <= response.json["confidence"] <= 1
+    assert response.json["model_name"] == "customer-churn-random-forest"
 
 
 def test_invalid_feature_count(client):
-    response = client.post("/predict", json={"features": [5.1, 3.5]})
+    response = client.post(
+        "/predict",
+        json={"features": [12, 85]}
+    )
     assert response.status_code == 400
 
 
 def test_non_numeric_features(client):
     response = client.post(
-        "/predict", json={"features": ["bad", 3.5, 1.4, 0.2]}
+        "/predict",
+        json={"features": ["bad", 85, 3, 1]}
     )
     assert response.status_code == 400
 
@@ -51,3 +59,9 @@ def test_non_numeric_features(client):
 def test_missing_json(client):
     response = client.post("/predict")
     assert response.status_code == 400
+
+
+def test_prediction_metrics(client):
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert b"model_setu_ml_prediction_requests_total" in response.data
