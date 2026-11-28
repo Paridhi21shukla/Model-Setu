@@ -376,3 +376,10 @@ The following are potential extensions, not claims about the current implementat
 **Repository:** https://github.com/Paridhi21shukla/Model-Setu  
 **ML service:** https://model-setu.onrender.com  
 **Backend service:** https://model-setu-backend.onrender.com
+
+
+## Latest CI/CD Verification
+
+Model-Setu uses GitHub Actions to automate testing,
+Docker image building, publishing and deployment
+verification.
